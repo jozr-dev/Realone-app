@@ -542,7 +542,14 @@
 <div id="setup-screen" style="display:flex;">
   <div class="setup-logo">Own It</div>
   <div class="setup-tagline">No Excuses. Just Own It.</div>
-  <div class="setup-card">
+  <div id="install-first-card" class="setup-card" style="display:none;">
+    <h2>📱 Add to Home Screen First</h2>
+    <p>For the best experience and to save your progress, add this app to your home screen before getting started.</p>
+    <p style="margin-top:8px;">Tap <strong style="color:#fff;">Share →</strong> then <strong style="color:#fff;">Add to Home Screen</strong> at the bottom of Safari.</p>
+    <button class="setup-btn" style="margin-top:16px;" onclick="document.getElementById('install-first-card').style.display='none';document.getElementById('name-card').style.display='block';">Already added it ✓</button>
+    <button class="setup-btn" style="margin-top:8px;background:transparent;border:1px solid rgba(255,255,255,0.15);color:rgba(255,255,255,0.5);" onclick="document.getElementById('install-first-card').style.display='none';document.getElementById('name-card').style.display='block';">Skip, continue in browser</button>
+  </div>
+  <div id="name-card" class="setup-card">
     <h2>Hey, what's your name?</h2>
     <p>Chase is ready. Just tell us what to call you and let's get to work.</p>
     <input type="text" class="setup-input" id="your-name-input" placeholder="First name" autocomplete="off" onkeydown="if(event.key==='Enter') startApp()" />
@@ -628,6 +635,14 @@ window.onload = () => {
   }
   // Always use hardcoded key
   state.apiKey = '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';
+  
+  // Show install prompt if opening in Safari (not standalone) and first time
+  const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+  if (!isStandalone && !state.userName) {
+    document.getElementById('install-first-card').style.display = 'block';
+    document.getElementById('name-card').style.display = 'none';
+  }
+  
   if (state.userName) {
     launchApp();
   }
