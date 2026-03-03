@@ -678,6 +678,10 @@ function launchApp() {
   }
 
   if (!state.onboardingDone && state.history.length === 0) {
+    // Show install banner first if not already installed
+    if (!window.matchMedia('(display-mode: standalone)').matches) {
+      setTimeout(() => showInstallBanner(), 1500);
+    }
     setTimeout(() => beginOnboarding(), 800);
   } else if (state.onboardingDone && state.history.length === 0) {
     // Onboarding done but history was cleared — start fresh chat
@@ -894,9 +898,6 @@ async function finishOnboarding() {
   updateStreakBar();
   addMessage('in', `Okay ${state.userName}, I got you. Let's get to work 💪\n\nMy messages are always open. Hit me up whenever, whatever's on your mind. That's what I'm here for.`);
   showToast('🔥 Day 1 streak started!');
-
-  // Show Add to Home Screen banner after a beat
-  setTimeout(() => showInstallBanner(), 3000);
 
   // Request notification permission
   await delay(1500);
