@@ -1,4 +1,4 @@
-const CACHE_NAME = 'ownit-v1';
+const CACHE_NAME = 'ownit-v3';
 const urlsToCache = ['/'];
 
 // Install - cache the app shell
