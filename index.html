@@ -1186,26 +1186,20 @@ function cleanResponse(text) {
 }
 
 async function handleOnboardingFreeText(text) {
-  const step = Object.keys(onboardingData).length;
-
-  if (step === 2) { // struggle — ACKNOWLEDGE IT before moving on
+  if (!onboardingData.struggle) {
     onboardingData.struggle = text;
     showTyping();
     await delay(1400);
     hideTyping();
-    // Build a real acknowledgment based on what they said
     await getChaseAcknowledgment(text);
-  } else if (step === 3) { // whyNow
+  } else if (!onboardingData.whyNow) {
     onboardingData.whyNow = text;
     showTyping();
     await delay(1400);
     hideTyping();
     await getChaseWhyNowResponse(text);
-  } else if (step === 4) { // confession — what keeps sabotaging you
+  } else if (!onboardingData.confession) {
     onboardingData.confession = text;
-    showTyping();
-    await delay(1600);
-    hideTyping();
     await getConfessionResponse(text);
   }
 }
