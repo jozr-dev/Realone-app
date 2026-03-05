@@ -908,6 +908,7 @@ async function finishOnboarding() {
   state.onboardingDone = true;
   state.lastCheckIn = new Date().toDateString();
   state.streak = 1;
+  state.history = []; // Clear onboarding history so first real message is clean
   addXP(50);
   saveState();
   updateStreakBar();
@@ -917,13 +918,6 @@ async function finishOnboarding() {
   // Request notification permission
   await delay(1500);
   requestNotificationPermission();
-
-  // Kick into TODAY
-  await delay(2000);
-  showTyping();
-  await delay(1800);
-  hideTyping();
-  addMessage('in', `So let's not wait. What are we actually going after TODAY? Right now. What's on the list?`);
 }
 
 function requestNotificationPermission() {
@@ -962,6 +956,11 @@ function requestNotificationPermission() {
         hideTyping();
         addMessage('in', `No worries. You can always come back and turn them on. I will be here.`);
       }
+      await delay(1200);
+      showTyping();
+      await delay(1600);
+      hideTyping();
+      addMessage('in', `So let's not wait. What are we actually going after TODAY? Right now. What's on the list?`);
     };
     const noBtn = document.createElement('button');
     noBtn.className = 'choice-btn';
@@ -972,6 +971,11 @@ function requestNotificationPermission() {
       await delay(800);
       hideTyping();
       addMessage('in', `Cool. I will be here whenever you need me.`);
+      await delay(1200);
+      showTyping();
+      await delay(1600);
+      hideTyping();
+      addMessage('in', `So let's not wait. What are we actually going after TODAY? Right now. What's on the list?`);
     };
     btnRow.appendChild(yesBtn);
     btnRow.appendChild(noBtn);
@@ -1344,7 +1348,7 @@ async function getChaseResponse(userText, imageBase64 = null) {
     if (data.error) {
       state.history.pop();
       hideTyping();
-      addMessage('in', `Hmm, that image was too large to send. Try taking a screenshot and cropping it down, then send again 📸`);
+      addMessage('in', `Something went wrong on my end. Try sending that again.`);
       return;
     }
 
