@@ -693,10 +693,6 @@ function launchApp() {
   }
 
   if (!state.onboardingDone && state.history.length === 0) {
-    // Show install banner first if not already installed
-    if (!window.matchMedia('(display-mode: standalone)').matches) {
-      setTimeout(() => showInstallBanner(), 1500);
-    }
     setTimeout(() => beginOnboarding(), 800);
   } else if (state.onboardingDone && state.history.length === 0) {
     // Onboarding done but history was cleared — start fresh chat
@@ -1305,6 +1301,11 @@ async function getChaseResponse(userText, imageBase64 = null) {
 
   state.history.push(userMsg);
 
+  // Ensure history starts with user role (API requires this)
+  while (state.history.length > 0 && state.history[0].role !== 'user') {
+    state.history.shift();
+  }
+
   // Pattern trigger check — warn before Chase responds normally
   if (typeof userText === 'string' && userText.length > 3) {
     const pattern = checkForPatternTrigger(userText);
@@ -1344,8 +1345,10 @@ async function getChaseResponse(userText, imageBase64 = null) {
     });
 
     const data = await response.json();
+    console.log('API response:', JSON.stringify(data).substring(0, 200));
 
     if (data.error) {
+      console.error('API error:', data.error);
       state.history.pop();
       hideTyping();
       addMessage('in', `Something went wrong on my end. Try sending that again.`);
