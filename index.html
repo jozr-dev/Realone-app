@@ -603,7 +603,7 @@
 <script>
 // ── STATE ──
 let state = {
-  apiKey: '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',
+  
   userName: '',
   chaseName: 'Chase',
   mode: 'locked', // locked | chill
@@ -634,7 +634,7 @@ window.onload = () => {
     } catch(e) {}
   }
   // Always use hardcoded key
-  state.apiKey = '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';
+  
   
   // Show install prompt if opening in Safari (not standalone) and first time
   const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
@@ -850,14 +850,13 @@ async function getConfessionResponse(confession) {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 8000);
 
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
+    const response = await fetch('https://perceptive-surprise-production.up.railway.app/chat', {
       method: 'POST',
       signal: controller.signal,
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': state.apiKey,
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true'
+        
+        
       },
       body: JSON.stringify({
         model: 'claude-haiku-4-5-20251001',
@@ -1040,13 +1039,12 @@ async function extractPlanFromConversation() {
   if (!timePatterns.test(recentMessages)) return;
 
   try {
-    const extractResponse = await fetch('https://api.anthropic.com/v1/messages', {
+    const extractResponse = await fetch('https://perceptive-surprise-production.up.railway.app/chat', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': state.apiKey,
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true'
+        
+        
       },
       body: JSON.stringify({
         model: 'claude-haiku-4-5-20251001',
@@ -1088,13 +1086,12 @@ async function detectPatterns() {
     .join('\n');
 
   try {
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
+    const response = await fetch('https://perceptive-surprise-production.up.railway.app/chat', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': state.apiKey,
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true'
+        
+        
       },
       body: JSON.stringify({
         model: 'claude-haiku-4-5-20251001',
@@ -1222,13 +1219,12 @@ async function handleOnboardingFreeText(text) {
 
 async function getChaseAcknowledgment(struggle) {
   try {
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
+    const response = await fetch('https://perceptive-surprise-production.up.railway.app/chat', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': state.apiKey,
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true'
+        
+        
       },
       body: JSON.stringify({
         model: 'claude-haiku-4-5-20251001',
@@ -1254,13 +1250,12 @@ Sound like a real text. Warm, direct, human. No bullet points. No "As an AI".`,
 async function getChaseWhyNowResponse(whyNow) {
   try {
     const struggle = onboardingData.struggle || '';
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
+    const response = await fetch('https://perceptive-surprise-production.up.railway.app/chat', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': state.apiKey,
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true'
+        
+        
       },
       body: JSON.stringify({
         model: 'claude-haiku-4-5-20251001',
@@ -1328,13 +1323,12 @@ async function getChaseResponse(userText, imageBase64 = null) {
   showTyping();
 
   try {
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
+    const response = await fetch('https://perceptive-surprise-production.up.railway.app/chat', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': state.apiKey,
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true'
+        
+        
       },
       body: JSON.stringify({
         model: 'claude-haiku-4-5-20251001',
