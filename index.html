@@ -1351,7 +1351,7 @@ async function getChaseResponse(userText, imageBase64 = null) {
       console.error('API error:', data.error);
       state.history.pop();
       hideTyping();
-      addMessage('in', `Something went wrong on my end. Try sending that again.`);
+      addMessage('in', `DEBUG: ${data.error.type} — ${data.error.message}`);
       return;
     }
 
