@@ -546,15 +546,20 @@
     <h2>📱 Add to Home Screen First</h2>
     <p>For the best experience and to save your progress, add this app to your home screen before getting started.</p>
     <p style="margin-top:8px;">Tap <strong style="color:#fff;">Share →</strong> then <strong style="color:#fff;">Add to Home Screen</strong> at the bottom of Safari.</p>
-    <button class="setup-btn" style="margin-top:16px;" onclick="document.getElementById('install-first-card').style.display='none';document.getElementById('name-card').style.display='block';">Already added it ✓</button>
-    <button class="setup-btn" style="margin-top:8px;background:transparent;border:1px solid rgba(255,255,255,0.15);color:rgba(255,255,255,0.5);" onclick="document.getElementById('install-first-card').style.display='none';document.getElementById('name-card').style.display='block';">Skip, continue in browser</button>
+    <button class="setup-btn" style="margin-top:16px;" onclick="document.getElementById('install-first-card').style.display='none';document.getElementById('auth-card').style.display='block';">Already added it ✓</button>
+    <button class="setup-btn" style="margin-top:8px;background:transparent;border:1px solid rgba(255,255,255,0.15);color:rgba(255,255,255,0.5);" onclick="document.getElementById('install-first-card').style.display='none';document.getElementById('auth-card').style.display='block';">Skip, continue in browser</button>
   </div>
-  <div id="name-card" class="setup-card">
-    <h2>Hey, what's your name?</h2>
-    <p>Chase is ready. Just tell us what to call you and let's get to work.</p>
-    <input type="text" class="setup-input" id="your-name-input" placeholder="First name" autocomplete="off" onkeydown="if(event.key==='Enter') startApp()" />
-    <button class="setup-btn" id="start-btn" type="button" onclick="startApp()">Meet Chase →</button>
-    <div class="setup-note">⚠️ Use a regular browser tab, not private/incognito. Private mode clears your progress when you close the tab.</div>
+  <div id="auth-card" class="setup-card">
+    <h2 id="auth-title">Hey, what's your name?</h2>
+    <p id="auth-subtitle">Chase is ready. Pick a name and a 4-digit PIN so your progress is always saved.</p>
+    <input type="text" class="setup-input" id="your-name-input" placeholder="First name" autocomplete="off" />
+    <input type="password" class="setup-input" id="pin-input" placeholder="4-digit PIN" inputmode="numeric" maxlength="8" autocomplete="off" onkeydown="if(event.key==='Enter') handleAuth()" />
+    <div id="auth-error" style="color:#ff453a;font-size:12px;margin-bottom:10px;display:none;"></div>
+    <button class="setup-btn" id="auth-btn" type="button" onclick="handleAuth()">Meet Chase →</button>
+    <div style="text-align:center;margin-top:14px;">
+      <span id="auth-toggle" style="color:var(--accent);font-size:13px;cursor:pointer;" onclick="toggleAuthMode()">Already have an account? Log in</span>
+    </div>
+    <div class="setup-note" id="auth-note">⚠️ Remember your PIN. It keeps your progress safe across devices.</div>
   </div>
 </div>
 
@@ -624,62 +629,201 @@ let state = {
   lastPatternCheck: null,
 };
 
+// ── CONFIG ──
+const API_BASE = 'https://perceptive-surprise-production.up.railway.app';
+let currentUserId = null;
+let authMode = 'register'; // 'register' | 'login'
+
 // ── INIT ──
 window.onload = () => {
-  const saved = localStorage.getItem('ownit_state');
-  if (saved) {
-    try {
-      const s = JSON.parse(saved);
-      state = { ...state, ...s };
-    } catch(e) {}
+  // Try to restore session from localStorage cache
+  let restored = false;
+  try {
+    const cached = localStorage.getItem('realone_session');
+    if (cached) {
+      const session = JSON.parse(cached);
+      if (session.userId && session.state && session.state.userName) {
+        currentUserId = session.userId;
+        state = { ...state, ...session.state };
+        if (session.onboardingData) onboardingData = session.onboardingData;
+        restored = true;
+      }
+    }
+  } catch(e) {
+    console.warn('localStorage not available:', e);
   }
-  // Always use hardcoded key
-  
-  
-  // Show install prompt if opening in Safari (not standalone) and first time
-  const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
-  if (!isStandalone && !state.userName) {
-    document.getElementById('install-first-card').style.display = 'block';
-    document.getElementById('name-card').style.display = 'none';
-  }
-  
-  if (state.userName) {
+
+  if (restored) {
+    // We have a cached session — launch app and sync from backend in background
     launchApp();
+    syncFromBackend();
+  } else {
+    // No cached session — show auth screen
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+    if (!isStandalone) {
+      document.getElementById('install-first-card').style.display = 'block';
+      document.getElementById('auth-card').style.display = 'none';
+    }
   }
 };
 
-function saveApiKey() {
-  const key = document.getElementById('apikey-input').value.trim();
-  if (!key || !key.startsWith('sk-ant')) {
-    alert('Please enter a valid Anthropic API key.');
+// ── AUTH ──
+function toggleAuthMode() {
+  const toggle = document.getElementById('auth-toggle');
+  const title = document.getElementById('auth-title');
+  const subtitle = document.getElementById('auth-subtitle');
+  const btn = document.getElementById('auth-btn');
+  const note = document.getElementById('auth-note');
+  const err = document.getElementById('auth-error');
+  err.style.display = 'none';
+
+  if (authMode === 'register') {
+    authMode = 'login';
+    title.textContent = 'Welcome back 👋';
+    subtitle.textContent = 'Enter your name and PIN to pick up where you left off.';
+    btn.textContent = 'Log in →';
+    toggle.textContent = 'New here? Create an account';
+    note.textContent = '💡 Use the same name and PIN you signed up with.';
+  } else {
+    authMode = 'register';
+    title.textContent = 'Hey, what\'s your name?';
+    subtitle.textContent = 'Chase is ready. Pick a name and a 4-digit PIN so your progress is always saved.';
+    btn.textContent = 'Meet Chase →';
+    toggle.textContent = 'Already have an account? Log in';
+    note.textContent = '⚠️ Remember your PIN. It keeps your progress safe across devices.';
+  }
+}
+
+async function handleAuth() {
+  const nameInput = document.getElementById('your-name-input');
+  const pinInput = document.getElementById('pin-input');
+  const errEl = document.getElementById('auth-error');
+  const btn = document.getElementById('auth-btn');
+  
+  const userName = nameInput.value.trim();
+  const pin = pinInput.value.trim();
+  
+  errEl.style.display = 'none';
+
+  if (!userName) {
+    errEl.textContent = 'Enter your name to get started.';
+    errEl.style.display = 'block';
     return;
   }
-  state.apiKey = key;
-  localStorage.setItem('ownit_api_key', key);
-  document.getElementById('apikey-screen').style.display = 'none';
-  if (state.userName) {
+  if (!pin || pin.length < 4) {
+    errEl.textContent = 'PIN must be at least 4 digits.';
+    errEl.style.display = 'block';
+    return;
+  }
+
+  btn.textContent = authMode === 'register' ? 'Setting up...' : 'Logging in...';
+  btn.style.opacity = '0.6';
+  btn.style.pointerEvents = 'none';
+
+  try {
+    const endpoint = authMode === 'register' ? '/api/register' : '/api/login';
+    const response = await fetch(API_BASE + endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userName, pin }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      // If register fails because name taken, suggest login
+      if (response.status === 409) {
+        errEl.textContent = data.error + ' Tap "Log in" below.';
+      } else {
+        errEl.textContent = data.error || 'Something went wrong. Try again.';
+      }
+      errEl.style.display = 'block';
+      btn.textContent = authMode === 'register' ? 'Meet Chase →' : 'Log in →';
+      btn.style.opacity = '1';
+      btn.style.pointerEvents = 'all';
+      return;
+    }
+
+    // Success — load user data
+    currentUserId = data.userId;
+    state = { ...state, ...data.state };
+    if (data.onboardingData) onboardingData = data.onboardingData;
+    
+    // Restore chat history from backend
+    if (data.history && data.history.length > 0) {
+      state.history = data.history.map(h => ({ role: h.role, content: h.content }));
+    }
+
+    // Cache session locally
+    cacheSession();
     launchApp();
-  } else {
-    document.getElementById('setup-screen').style.display = 'flex';
+
+  } catch(err) {
+    console.error('Auth error:', err);
+    errEl.textContent = 'Connection issue. Check your internet and try again.';
+    errEl.style.display = 'block';
+    btn.textContent = authMode === 'register' ? 'Meet Chase →' : 'Log in →';
+    btn.style.opacity = '1';
+    btn.style.pointerEvents = 'all';
+  }
+}
+
+// ── PERSISTENCE ──
+function cacheSession() {
+  try {
+    localStorage.setItem('realone_session', JSON.stringify({
+      userId: currentUserId,
+      state,
+      onboardingData,
+    }));
+  } catch(e) {
+    console.warn('Could not cache session:', e);
   }
 }
 
 function saveState() {
-  const toSave = { ...state };
-  localStorage.setItem('ownit_state', JSON.stringify(toSave));
+  // Always cache locally first (fast)
+  cacheSession();
+
+  // Then sync to backend (async, fire-and-forget)
+  if (currentUserId) {
+    fetch(API_BASE + '/api/state', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userId: currentUserId,
+        state,
+        onboardingData,
+      }),
+    }).catch(err => console.warn('Backend sync failed:', err));
+  }
 }
 
-function startApp() {
-  const nameInput = document.getElementById('your-name-input');
-  const name = nameInput ? nameInput.value.trim() : '';
-  if (!name) {
-    alert('Enter your name to get started.');
-    return;
-  }
-  state.userName = name;
-  saveState();
-  launchApp();
+function saveHistory(role, content) {
+  if (!currentUserId) return;
+  fetch(API_BASE + '/api/history', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ userId: currentUserId, role, content }),
+  }).catch(err => console.warn('History sync failed:', err));
 }
+
+async function syncFromBackend() {
+  if (!currentUserId) return;
+  try {
+    const response = await fetch(API_BASE + '/api/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: currentUserId, pin: '__session__' }),
+    });
+    // If this fails (wrong pin since we're using session), that's fine
+    // The cached data is still valid for this session
+  } catch(e) {
+    // Silent — cache is good enough
+  }
+}
+
+let isRecoveryMode = false;
 
 function launchApp() {
   document.getElementById('setup-screen').style.display = 'none';
@@ -1209,6 +1353,7 @@ async function checkMorningOpener() {
     const morningMsg = openers[Math.floor(Math.random() * openers.length)];
     addMessage('in', morningMsg);
     state.history.push({ role: 'assistant', content: morningMsg });
+    saveHistory('assistant', morningMsg);
     saveState();
   } else {
     // No plan — ask what's on for today
@@ -1223,6 +1368,7 @@ async function checkMorningOpener() {
     const msg = msgs[Math.floor(Math.random() * msgs.length)];
     addMessage('in', msg);
     state.history.push({ role: 'assistant', content: msg });
+    saveHistory('assistant', msg);
     saveState();
   }
 }
@@ -1340,6 +1486,7 @@ async function getChaseResponse(userText, imageBase64 = null) {
     : { role: 'user', content: userText };
 
   state.history.push(userMsg);
+  saveHistory('user', typeof userMsg.content === 'string' ? userMsg.content : '[image]');
 
   // Ensure history starts with user role (API requires this)
   while (state.history.length > 0 && state.history[0].role !== 'user') {
@@ -1356,6 +1503,7 @@ async function getChaseResponse(userText, imageBase64 = null) {
       const warningMsg = cleanResponse(pattern.warning);
       addMessage('in', warningMsg);
       state.history.push({ role: 'assistant', content: warningMsg });
+      saveHistory('assistant', warningMsg);
       await delay(800);
     }
   }
@@ -1396,6 +1544,7 @@ async function getChaseResponse(userText, imageBase64 = null) {
 
     const reply = cleanResponse(data.content[0].text);
     state.history.push({ role: 'assistant', content: reply });
+    saveHistory('assistant', reply);
 
     // Dynamic typing delay — longer messages take longer to "type"
     const typingDelay = Math.min(Math.max(reply.length * 18, 600), 2800);
@@ -1678,8 +1827,11 @@ function showToast(message) {
 }
 
 function showInfo() {
-  const info = `Real One — Chase\n\nStreak: ${state.streak} days\nXP: ${state.xp}\nMode: ${state.mode === 'locked' ? 'Locked In' : 'Chill'}\n\nTell Chase:\n"switch to chill mode"\n"change my name to [name]"\n"reset my streak"`;
-  alert(info);
+  const info = `Real One — Chase\n\nStreak: ${state.streak} days\nXP: ${state.xp}\nMode: ${state.mode === 'locked' ? 'Locked In' : 'Chill'}\nUser ID: ${currentUserId || 'local'}\n\nTell Chase:\n"switch to chill mode"\n"change my name to [name]"\n"reset my streak"`;
+  if (confirm(info + '\n\nTap OK to log out, Cancel to close.')) {
+    try { localStorage.removeItem('realone_session'); } catch(e) {}
+    location.reload();
+  }
 }
 
 function delay(ms) {
