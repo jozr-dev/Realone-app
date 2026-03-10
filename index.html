@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -14,531 +15,533 @@
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
-  :root {
-    --bg: #000000;
-    --surface: #1c1c1e;
-    --surface2: #2c2c2e;
-    --surface3: #3a3a3c;
-    --accent: #0a84ff;
-    --accent-dim: rgba(10, 132, 255, 0.15);
-    --bubble-out: #0a84ff;
-    --bubble-in: #2c2c2e;
-    --text: #ffffff;
-    --text-secondary: #ebebf599;
-    --text-muted: #ebebf560;
-    --border: rgba(255,255,255,0.08);
-    --danger: #ff453a;
-    --success: #30d158;
-    --gold: #ffd60a;
-  }
+:root {
+–bg: #000000;
+–surface: #1c1c1e;
+–surface2: #2c2c2e;
+–surface3: #3a3a3c;
+–accent: #0a84ff;
+–accent-dim: rgba(10, 132, 255, 0.15);
+–bubble-out: #0a84ff;
+–bubble-in: #2c2c2e;
+–text: #ffffff;
+–text-secondary: #ebebf599;
+–text-muted: #ebebf560;
+–border: rgba(255,255,255,0.08);
+–danger: #ff453a;
+–success: #30d158;
+–gold: #ffd60a;
+}
 
-  body {
-    background: var(--bg);
-    color: var(--text);
-    font-family: 'DM Sans', -apple-system, sans-serif;
-    height: 100dvh;
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
-  }
+body {
+background: var(–bg);
+color: var(–text);
+font-family: ‘DM Sans’, -apple-system, sans-serif;
+height: 100dvh;
+overflow: hidden;
+display: flex;
+flex-direction: column;
+}
 
-  /* ── SETUP SCREEN ── */
-  #setup-screen {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    min-height: 100dvh;
-    padding: 48px 24px;
-    padding-top: max(60px, env(safe-area-inset-top));
-    padding-bottom: max(48px, env(safe-area-inset-bottom));
-    background: radial-gradient(ellipse at 50% 20%, rgba(10,132,255,0.18) 0%, transparent 65%), #000;
-    animation: fadeIn 0.6s ease;
-  }
+/* ── SETUP SCREEN ── */
+#setup-screen {
+display: flex;
+flex-direction: column;
+align-items: center;
+justify-content: center;
+min-height: 100dvh;
+padding: 48px 24px;
+padding-top: max(60px, env(safe-area-inset-top));
+padding-bottom: max(48px, env(safe-area-inset-bottom));
+background: radial-gradient(ellipse at 50% 20%, rgba(10,132,255,0.18) 0%, transparent 65%), #000;
+animation: fadeIn 0.6s ease;
+}
 
-  .setup-logo {
-    font-family: 'DM Sans', sans-serif;
-    font-weight: 700;
-    font-size: 42px;
-    letter-spacing: -1px;
-    color: #fff;
-    margin-bottom: 6px;
-  }
+.setup-logo {
+font-family: ‘DM Sans’, sans-serif;
+font-weight: 700;
+font-size: 42px;
+letter-spacing: -1px;
+color: #fff;
+margin-bottom: 6px;
+}
 
-  .setup-tagline {
-    font-size: 14px;
-    color: var(--text-muted);
-    letter-spacing: 0.5px;
-    margin-bottom: 48px;
-    text-transform: uppercase;
-  }
+.setup-tagline {
+font-size: 14px;
+color: var(–text-muted);
+letter-spacing: 0.5px;
+margin-bottom: 48px;
+text-transform: uppercase;
+}
 
-  .setup-card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 20px;
-    padding: 28px 24px;
-    width: 100%;
-    max-width: 380px;
-  }
+.setup-card {
+background: var(–surface);
+border: 1px solid var(–border);
+border-radius: 20px;
+padding: 28px 24px;
+width: 100%;
+max-width: 380px;
+}
 
-  .setup-card h2 {
-    font-size: 18px;
-    font-weight: 600;
-    margin-bottom: 8px;
-    color: #fff;
-  }
+.setup-card h2 {
+font-size: 18px;
+font-weight: 600;
+margin-bottom: 8px;
+color: #fff;
+}
 
-  .setup-card p {
-    font-size: 13px;
-    color: var(--text-muted);
-    margin-bottom: 20px;
-    line-height: 1.5;
-  }
+.setup-card p {
+font-size: 13px;
+color: var(–text-muted);
+margin-bottom: 20px;
+line-height: 1.5;
+}
 
-  .setup-input {
-    width: 100%;
-    background: var(--surface2);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 14px 16px;
-    color: #fff;
-    font-size: 14px;
-    font-family: 'DM Sans', sans-serif;
-    outline: none;
-    transition: border-color 0.2s;
-    margin-bottom: 12px;
-  }
+.setup-input {
+width: 100%;
+background: var(–surface2);
+border: 1px solid var(–border);
+border-radius: 12px;
+padding: 14px 16px;
+color: #fff;
+font-size: 14px;
+font-family: ‘DM Sans’, sans-serif;
+outline: none;
+transition: border-color 0.2s;
+margin-bottom: 12px;
+}
 
-  .setup-input:focus { border-color: var(--accent); }
-  .setup-input::placeholder { color: var(--text-muted); }
+.setup-input:focus { border-color: var(–accent); }
+.setup-input::placeholder { color: var(–text-muted); }
 
-  .setup-btn {
-    width: 100%;
-    background: var(--accent);
-    color: #fff;
-    border: none;
-    border-radius: 12px;
-    padding: 15px;
-    font-size: 15px;
-    font-weight: 600;
-    font-family: 'DM Sans', sans-serif;
-    cursor: pointer;
-    transition: opacity 0.2s, transform 0.1s;
-  }
+.setup-btn {
+width: 100%;
+background: var(–accent);
+color: #fff;
+border: none;
+border-radius: 12px;
+padding: 15px;
+font-size: 15px;
+font-weight: 600;
+font-family: ‘DM Sans’, sans-serif;
+cursor: pointer;
+transition: opacity 0.2s, transform 0.1s;
+}
 
-  .setup-btn:active { transform: scale(0.98); opacity: 0.9; }
+.setup-btn:active { transform: scale(0.98); opacity: 0.9; }
 
-  .setup-note {
-    font-size: 11px;
-    color: var(--text-muted);
-    text-align: center;
-    margin-top: 12px;
-    line-height: 1.5;
-  }
+.setup-note {
+font-size: 11px;
+color: var(–text-muted);
+text-align: center;
+margin-top: 12px;
+line-height: 1.5;
+}
 
-  /* ── MAIN APP ── */
-  #app {
-    display: none;
-    flex-direction: column;
-    height: 100dvh;
-    max-width: 500px;
-    margin: 0 auto;
-    width: 100%;
-  }
+/* ── MAIN APP ── */
+#app {
+display: none;
+flex-direction: column;
+height: 100dvh;
+max-width: 500px;
+margin: 0 auto;
+width: 100%;
+}
 
-  /* ── HEADER ── */
-  .header {
-    background: rgba(28,28,30,0.92);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    border-bottom: 1px solid var(--border);
-    padding: 12px 16px 10px;
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    position: relative;
-    z-index: 10;
-    flex-shrink: 0;
-  }
+/* ── HEADER ── */
+.header {
+background: rgba(28,28,30,0.92);
+backdrop-filter: blur(20px);
+-webkit-backdrop-filter: blur(20px);
+border-bottom: 1px solid var(–border);
+padding: 12px 16px 10px;
+display: flex;
+align-items: center;
+gap: 12px;
+position: relative;
+z-index: 10;
+flex-shrink: 0;
+}
 
-  .header-back {
-    color: var(--accent);
-    font-size: 16px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    gap: 2px;
-    font-weight: 500;
-  }
+.header-back {
+color: var(–accent);
+font-size: 16px;
+cursor: pointer;
+display: flex;
+align-items: center;
+gap: 2px;
+font-weight: 500;
+}
 
-  .header-center {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-  }
+.header-center {
+flex: 1;
+display: flex;
+flex-direction: column;
+align-items: center;
+}
 
-  .avatar {
-    width: 36px;
-    height: 36px;
-    border-radius: 50%;
-    background: linear-gradient(135deg, #0a84ff, #5e5ce6);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 15px;
-    font-weight: 700;
-    color: #fff;
-    flex-shrink: 0;
-    position: relative;
-  }
+.avatar {
+width: 36px;
+height: 36px;
+border-radius: 50%;
+background: linear-gradient(135deg, #0a84ff, #5e5ce6);
+display: flex;
+align-items: center;
+justify-content: center;
+font-size: 15px;
+font-weight: 700;
+color: #fff;
+flex-shrink: 0;
+position: relative;
+}
 
-  .avatar-online {
-    position: absolute;
-    bottom: 1px;
-    right: 1px;
-    width: 9px;
-    height: 9px;
-    background: var(--success);
-    border-radius: 50%;
-    border: 1.5px solid var(--bg);
-  }
+.avatar-online {
+position: absolute;
+bottom: 1px;
+right: 1px;
+width: 9px;
+height: 9px;
+background: var(–success);
+border-radius: 50%;
+border: 1.5px solid var(–bg);
+}
 
-  .header-info {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-  }
+.header-info {
+display: flex;
+flex-direction: column;
+align-items: center;
+}
 
-  .header-name {
-    font-size: 15px;
-    font-weight: 600;
-    color: #fff;
-    line-height: 1.2;
-  }
+.header-name {
+font-size: 15px;
+font-weight: 600;
+color: #fff;
+line-height: 1.2;
+}
 
-  .header-status {
-    font-size: 11px;
-    color: var(--success);
-  }
+.header-status {
+font-size: 11px;
+color: var(–success);
+}
 
-  .header-actions {
-    display: flex;
-    gap: 16px;
-    align-items: center;
-  }
+.header-actions {
+display: flex;
+gap: 16px;
+align-items: center;
+}
 
-  .header-icon {
-    color: var(--accent);
-    font-size: 20px;
-    cursor: pointer;
-  }
+.header-icon {
+color: var(–accent);
+font-size: 20px;
+cursor: pointer;
+}
 
-  /* ── STREAK BAR ── */
-  .streak-bar {
-    background: var(--surface);
-    border-bottom: 1px solid var(--border);
-    padding: 8px 16px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    flex-shrink: 0;
-  }
+/* ── STREAK BAR ── */
+.streak-bar {
+background: var(–surface);
+border-bottom: 1px solid var(–border);
+padding: 8px 16px;
+display: flex;
+align-items: center;
+justify-content: space-between;
+flex-shrink: 0;
+}
 
-  .streak-item {
-    display: flex;
-    align-items: center;
-    gap: 5px;
-    font-size: 12px;
-    color: var(--text-secondary);
-  }
+.streak-item {
+display: flex;
+align-items: center;
+gap: 5px;
+font-size: 12px;
+color: var(–text-secondary);
+}
 
-  .streak-item span:first-child { font-size: 14px; }
-  .streak-count { font-weight: 700; color: #fff; }
+.streak-item span:first-child { font-size: 14px; }
+.streak-count { font-weight: 700; color: #fff; }
 
-  .mode-badge {
-    background: var(--accent-dim);
-    border: 1px solid rgba(10,132,255,0.3);
-    color: var(--accent);
-    font-size: 10px;
-    font-weight: 600;
-    padding: 3px 8px;
-    border-radius: 20px;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-  }
+.mode-badge {
+background: var(–accent-dim);
+border: 1px solid rgba(10,132,255,0.3);
+color: var(–accent);
+font-size: 10px;
+font-weight: 600;
+padding: 3px 8px;
+border-radius: 20px;
+text-transform: uppercase;
+letter-spacing: 0.5px;
+}
 
-  .mode-badge.chill {
-    background: rgba(48,209,88,0.12);
-    border-color: rgba(48,209,88,0.3);
-    color: var(--success);
-  }
+.mode-badge.chill {
+background: rgba(48,209,88,0.12);
+border-color: rgba(48,209,88,0.3);
+color: var(–success);
+}
 
-  /* ── MESSAGES ── */
-  #messages {
-    flex: 1;
-    overflow-y: auto;
-    padding: 16px 12px;
-    display: flex;
-    flex-direction: column;
-    gap: 3px;
-    scroll-behavior: smooth;
-  }
+/* ── MESSAGES ── */
+#messages {
+flex: 1;
+overflow-y: auto;
+padding: 16px 12px;
+display: flex;
+flex-direction: column;
+gap: 3px;
+scroll-behavior: smooth;
+}
 
-  #messages::-webkit-scrollbar { display: none; }
+#messages::-webkit-scrollbar { display: none; }
 
-  .date-divider {
-    text-align: center;
-    color: var(--text-muted);
-    font-size: 11px;
-    font-weight: 500;
-    padding: 10px 0 6px;
-    letter-spacing: 0.3px;
-  }
+.date-divider {
+text-align: center;
+color: var(–text-muted);
+font-size: 11px;
+font-weight: 500;
+padding: 10px 0 6px;
+letter-spacing: 0.3px;
+}
 
-  .msg-row {
-    display: flex;
-    flex-direction: column;
-    animation: msgIn 0.25s ease;
-  }
+.msg-row {
+display: flex;
+flex-direction: column;
+animation: msgIn 0.25s ease;
+}
 
-  @keyframes msgIn {
-    from { opacity: 0; transform: translateY(8px); }
-    to { opacity: 1; transform: translateY(0); }
-  }
+@keyframes msgIn {
+from { opacity: 0; transform: translateY(8px); }
+to { opacity: 1; transform: translateY(0); }
+}
 
-  .msg-row.out { align-items: flex-end; }
-  .msg-row.in { align-items: flex-start; }
+.msg-row.out { align-items: flex-end; }
+.msg-row.in { align-items: flex-start; }
 
-  .bubble {
-    max-width: 75%;
-    padding: 10px 14px;
-    border-radius: 18px;
-    font-size: 15px;
-    line-height: 1.45;
-    word-wrap: break-word;
-    position: relative;
-  }
+.bubble {
+max-width: 75%;
+padding: 10px 14px;
+border-radius: 18px;
+font-size: 15px;
+line-height: 1.45;
+word-wrap: break-word;
+position: relative;
+}
 
-  .msg-row.out .bubble {
-    background: var(--bubble-out);
-    color: #fff;
-    border-bottom-right-radius: 5px;
-  }
+.msg-row.out .bubble {
+background: var(–bubble-out);
+color: #fff;
+border-bottom-right-radius: 5px;
+}
 
-  .msg-row.in .bubble {
-    background: var(--bubble-in);
-    color: var(--text);
-    border-bottom-left-radius: 5px;
-  }
+.msg-row.in .bubble {
+background: var(–bubble-in);
+color: var(–text);
+border-bottom-left-radius: 5px;
+}
 
-  .msg-row.out + .msg-row.out .bubble { border-top-right-radius: 5px; }
-  .msg-row.in + .msg-row.in .bubble { border-top-left-radius: 5px; }
+.msg-row.out + .msg-row.out .bubble { border-top-right-radius: 5px; }
+.msg-row.in + .msg-row.in .bubble { border-top-left-radius: 5px; }
 
-  .msg-time {
-    font-size: 10px;
-    color: var(--text-muted);
-    padding: 2px 4px;
-    margin-top: 2px;
-  }
+.msg-time {
+font-size: 10px;
+color: var(–text-muted);
+padding: 2px 4px;
+margin-top: 2px;
+}
 
-  .bubble img {
-    max-width: 100%;
-    border-radius: 12px;
-    display: block;
-    max-height: 240px;
-    object-fit: cover;
-  }
+.bubble img {
+max-width: 100%;
+border-radius: 12px;
+display: block;
+max-height: 240px;
+object-fit: cover;
+}
 
-  /* Typing indicator */
-  .typing-bubble {
-    background: var(--bubble-in);
-    border-radius: 18px;
-    border-bottom-left-radius: 5px;
-    padding: 12px 16px;
-    display: inline-flex;
-    gap: 4px;
-    align-items: center;
-  }
+/* Typing indicator */
+.typing-bubble {
+background: var(–bubble-in);
+border-radius: 18px;
+border-bottom-left-radius: 5px;
+padding: 12px 16px;
+display: inline-flex;
+gap: 4px;
+align-items: center;
+}
 
-  .typing-dot {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: var(--text-muted);
-    animation: typingBounce 1.2s infinite ease;
-  }
+.typing-dot {
+width: 6px;
+height: 6px;
+border-radius: 50%;
+background: var(–text-muted);
+animation: typingBounce 1.2s infinite ease;
+}
 
-  .typing-dot:nth-child(2) { animation-delay: 0.2s; }
-  .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+.typing-dot:nth-child(2) { animation-delay: 0.2s; }
+.typing-dot:nth-child(3) { animation-delay: 0.4s; }
 
-  @keyframes typingBounce {
-    0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
-    30% { transform: translateY(-5px); opacity: 1; }
-  }
+@keyframes typingBounce {
+0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+30% { transform: translateY(-5px); opacity: 1; }
+}
 
-  /* ── INPUT AREA ── */
-  .input-area {
-    background: rgba(28,28,30,0.95);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    border-top: 1px solid var(--border);
-    padding: 10px 12px;
-    padding-bottom: max(10px, env(safe-area-inset-bottom));
-    display: flex;
-    align-items: flex-end;
-    gap: 8px;
-    flex-shrink: 0;
-  }
+/* ── INPUT AREA ── */
+.input-area {
+background: rgba(28,28,30,0.95);
+backdrop-filter: blur(20px);
+-webkit-backdrop-filter: blur(20px);
+border-top: 1px solid var(–border);
+padding: 10px 12px;
+padding-bottom: max(10px, env(safe-area-inset-bottom));
+display: flex;
+align-items: flex-end;
+gap: 8px;
+flex-shrink: 0;
+}
 
-  .input-left {
-    display: flex;
-    gap: 6px;
-    align-items: flex-end;
-    padding-bottom: 6px;
-  }
+.input-left {
+display: flex;
+gap: 6px;
+align-items: flex-end;
+padding-bottom: 6px;
+}
 
-  .input-icon-btn {
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    background: var(--surface2);
-    border: none;
-    color: var(--accent);
-    font-size: 16px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-    transition: background 0.15s;
-  }
+.input-icon-btn {
+width: 32px;
+height: 32px;
+border-radius: 50%;
+background: var(–surface2);
+border: none;
+color: var(–accent);
+font-size: 16px;
+cursor: pointer;
+display: flex;
+align-items: center;
+justify-content: center;
+flex-shrink: 0;
+transition: background 0.15s;
+}
 
-  .input-icon-btn:active { background: var(--surface3); }
+.input-icon-btn:active { background: var(–surface3); }
 
-  .input-wrapper {
-    flex: 1;
-    background: var(--surface2);
-    border: 1px solid var(--border);
-    border-radius: 20px;
-    display: flex;
-    align-items: flex-end;
-    padding: 8px 14px;
-    gap: 8px;
-    transition: border-color 0.2s;
-    min-height: 38px;
-  }
+.input-wrapper {
+flex: 1;
+background: var(–surface2);
+border: 1px solid var(–border);
+border-radius: 20px;
+display: flex;
+align-items: flex-end;
+padding: 8px 14px;
+gap: 8px;
+transition: border-color 0.2s;
+min-height: 38px;
+}
 
-  .input-wrapper:focus-within { border-color: rgba(10,132,255,0.4); }
+.input-wrapper:focus-within { border-color: rgba(10,132,255,0.4); }
 
-  #msg-input {
-    flex: 1;
-    background: none;
-    border: none;
-    outline: none;
-    color: var(--text);
-    font-size: 15px;
-    font-family: 'DM Sans', sans-serif;
-    resize: none;
-    max-height: 120px;
-    line-height: 1.4;
-    overflow-y: auto;
-  }
+#msg-input {
+flex: 1;
+background: none;
+border: none;
+outline: none;
+color: var(–text);
+font-size: 15px;
+font-family: ‘DM Sans’, sans-serif;
+resize: none;
+max-height: 120px;
+line-height: 1.4;
+overflow-y: auto;
+}
 
-  #msg-input::placeholder { color: var(--text-muted); }
-  #msg-input::-webkit-scrollbar { display: none; }
+#msg-input::placeholder { color: var(–text-muted); }
+#msg-input::-webkit-scrollbar { display: none; }
 
-  .send-btn {
-    width: 28px;
-    height: 28px;
-    border-radius: 50%;
-    background: var(--accent);
-    border: none;
-    color: #fff;
-    font-size: 13px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-    transition: background 0.15s, transform 0.1s;
-    opacity: 0;
-    transform: scale(0.8);
-    pointer-events: none;
-  }
+.send-btn {
+width: 28px;
+height: 28px;
+border-radius: 50%;
+background: var(–accent);
+border: none;
+color: #fff;
+font-size: 13px;
+cursor: pointer;
+display: flex;
+align-items: center;
+justify-content: center;
+flex-shrink: 0;
+transition: background 0.15s, transform 0.1s;
+opacity: 0;
+transform: scale(0.8);
+pointer-events: none;
+}
 
-  .send-btn.visible {
-    opacity: 1;
-    transform: scale(1);
-    pointer-events: all;
-  }
+.send-btn.visible {
+opacity: 1;
+transform: scale(1);
+pointer-events: all;
+}
 
-  .send-btn:active { transform: scale(0.9); }
+.send-btn:active { transform: scale(0.9); }
 
-  /* ── HIDDEN FILE INPUT ── */
-  #photo-input { display: none; }
+/* ── HIDDEN FILE INPUT ── */
+#photo-input { display: none; }
 
-  /* ── ONBOARDING CHOICES ── */
-  .choice-row {
-    display: flex;
-    gap: 8px;
-    padding: 4px 0;
-    flex-wrap: wrap;
-  }
+/* ── ONBOARDING CHOICES ── */
+.choice-row {
+display: flex;
+gap: 8px;
+padding: 4px 0;
+flex-wrap: wrap;
+}
 
-  .choice-btn {
-    background: var(--accent-dim);
-    border: 1px solid rgba(10,132,255,0.35);
-    color: var(--accent);
-    border-radius: 20px;
-    padding: 8px 16px;
-    font-size: 14px;
-    font-weight: 500;
-    font-family: 'DM Sans', sans-serif;
-    cursor: pointer;
-    transition: background 0.15s, transform 0.1s;
-  }
+.choice-btn {
+background: var(–accent-dim);
+border: 1px solid rgba(10,132,255,0.35);
+color: var(–accent);
+border-radius: 20px;
+padding: 8px 16px;
+font-size: 14px;
+font-weight: 500;
+font-family: ‘DM Sans’, sans-serif;
+cursor: pointer;
+transition: background 0.15s, transform 0.1s;
+}
 
-  .choice-btn:active { transform: scale(0.96); background: rgba(10,132,255,0.25); }
-  .choice-btn:disabled { opacity: 0.4; pointer-events: none; }
+.choice-btn:active { transform: scale(0.96); background: rgba(10,132,255,0.25); }
+.choice-btn:disabled { opacity: 0.4; pointer-events: none; }
 
-  /* ── MILESTONE TOAST ── */
-  .toast {
-    position: fixed;
-    top: 80px;
-    left: 50%;
-    transform: translateX(-50%) translateY(-20px);
-    background: var(--surface2);
-    border: 1px solid var(--border);
-    border-radius: 16px;
-    padding: 12px 20px;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    font-size: 14px;
-    font-weight: 500;
-    opacity: 0;
-    transition: all 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
-    z-index: 100;
-    pointer-events: none;
-    white-space: nowrap;
-  }
+/* ── MILESTONE TOAST ── */
+.toast {
+position: fixed;
+top: 80px;
+left: 50%;
+transform: translateX(-50%) translateY(-20px);
+background: var(–surface2);
+border: 1px solid var(–border);
+border-radius: 16px;
+padding: 12px 20px;
+display: flex;
+align-items: center;
+gap: 10px;
+font-size: 14px;
+font-weight: 500;
+opacity: 0;
+transition: all 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+z-index: 100;
+pointer-events: none;
+white-space: nowrap;
+}
 
-  .toast.show {
-    opacity: 1;
-    transform: translateX(-50%) translateY(0);
-  }
+.toast.show {
+opacity: 1;
+transform: translateX(-50%) translateY(0);
+}
 
-  @keyframes fadeIn {
-    from { opacity: 0; transform: translateY(10px); }
-    to { opacity: 1; transform: translateY(0); }
-  }
+@keyframes fadeIn {
+from { opacity: 0; transform: translateY(10px); }
+to { opacity: 1; transform: translateY(0); }
+}
 </style>
+
 </head>
 <body>
 
 <!-- SETUP SCREEN -->
+
 <div id="setup-screen" style="display:flex;">
   <div class="setup-logo">Real One</div>
   <div class="setup-tagline">No Excuses. Just Results.</div>
@@ -564,6 +567,7 @@
 </div>
 
 <!-- MAIN APP -->
+
 <div id="app" style="display:none;">
   <div class="header">
     <div class="header-back">‹ Messages</div>
@@ -611,6 +615,7 @@ let state = {
   
   userName: '',
   chaseName: 'Chase',
+  userAge: null,
   mode: 'locked', // locked | chill
   streak: 0,
   xp: 0,
@@ -863,12 +868,23 @@ function launchApp() {
 const onboardingFlow = [
   {
     step: 0,
-    message: (name) => `Hey! I'm Chase 👋 Before we get into it. Coffee or energy drinks in the morning?`,
+    message: (name) => `Yo what's good ${name} 👋 I'm Chase. Before we get into it tho. how old are you? not being weird I just wanna know who I'm talking to lol`,
+    freeText: true,
+    key: 'age'
+  },
+  {
+    step: 1,
+    message: (name, prev) => {
+      const age = parseInt(prev) || 25;
+      if (age < 21) return `Okay okay still young. you got time on your side fr. Alright so coffee or energy drinks in the morning?`;
+      if (age < 30) return `${age}. solid. you're in your prime right now let's make it count. Quick question tho. coffee or energy drinks in the morning?`;
+      return `${age}. okay I see you. you already know what's up then. Real quick tho. coffee or energy drinks?`;
+    },
     choices: ['☕ Coffee', '⚡ Energy drink', '💧 Neither, water only', '🤷 Both tbh'],
     key: 'drinkChoice'
   },
   {
-    step: 1,
+    step: 2,
     message: (name, prev) => {
       const reactions = {
         '☕ Coffee': `That's what's up. Nothing like a real cup to start the day. `,
@@ -876,25 +892,25 @@ const onboardingFlow = [
         '💧 Neither, water only': `Water only?? Okay I see you, that's actually built different. `,
         '🤷 Both tbh': `Both?! You're really out here not taking any chances 😂 `
       };
-      return (reactions[prev] || '') + `What are you working on lately? Like what areas of your life are you trying to lock in. Eating, fitness, work, all of it?`;
+      return (reactions[prev] || '') + `So what are you working on? Like what areas of your life are you trying to lock in?`;
     },
     choices: ['🍽️ Eating & diet', '💪 Fitness & workouts', '💼 Work & productivity', '🔥 All of the above'],
     key: 'goals'
   },
   {
-    step: 2,
+    step: 3,
     message: (name) => `Real talk ${name}. What's been the hardest thing to stay consistent with? Like what keeps slipping no matter what you try?`,
     freeText: true,
     key: 'struggle'
   },
   {
-    step: 3,
+    step: 4,
     message: () => `What made you decide to do something about it today?`,
     freeText: true,
     key: 'whyNow'
   },
   {
-    step: 4,
+    step: 5,
     message: () => `Last thing. How do you want me to hold you down? You want me locked in on you, or you want to cruise on your own terms?`,
     choices: ['🔒 Locked In. Don\'t let me slide', '😌 Chill. I got it on my own terms'],
     key: 'mode'
@@ -908,7 +924,10 @@ async function beginOnboarding() {
   await delay(1200);
   hideTyping();
   addMessage('in', onboardingFlow[0].message(state.userName));
-  showChoices(onboardingFlow[0].choices, 0);
+  if (onboardingFlow[0].choices) {
+    showChoices(onboardingFlow[0].choices, 0);
+  }
+  // If freeText (like age question), user just types naturally
 }
 
 function showChoices(choices, step) {
@@ -937,7 +956,7 @@ async function handleChoice(choice, step, row) {
   const flowStep = onboardingFlow[step];
   onboardingData[flowStep.key] = choice;
 
-  if (step === 4) {
+  if (step === 5) {
     // Mode selection — dynamic API response based on choice
     if (choice.includes('Locked')) {
       state.mode = 'locked';
@@ -1002,7 +1021,7 @@ WRITING RULES: NEVER use em dashes. Write like a real text. Short sentences. No 
     return;
   }
 
-  if (step === 1) {
+  if (step === 2) {
     state.goals = choice.includes('All') ? ['eating', 'fitness', 'work'] : [choice.toLowerCase()];
   }
 
@@ -1384,7 +1403,22 @@ function cleanResponse(text) {
 }
 
 async function handleOnboardingFreeText(text) {
-  if (!onboardingData.struggle) {
+  if (!onboardingData.age) {
+    // Age step — store it and move to next step (coffee question)
+    const age = parseInt(text) || 25;
+    onboardingData.age = age;
+    state.userAge = age;
+    saveState();
+
+    showTyping();
+    await delay(800 + Math.random() * 400);
+    hideTyping();
+
+    // Show the age reaction + coffee question (step 1)
+    const next = onboardingFlow[1];
+    addMessage('in', next.message(state.userName, text));
+    showChoices(next.choices, 1);
+  } else if (!onboardingData.struggle) {
     onboardingData.struggle = text;
     showTyping();
     await delay(1400);
@@ -1470,7 +1504,7 @@ NEVER use em dashes. Sound like a text not an essay.`,
 
   // Step 3: Buttons appear AFTER the question lands
   await delay(500);
-  showChoices(['🔒 Locked In — don\'t let me slide', '😌 Chill. I got it on my own terms'], 4);
+  showChoices(['🔒 Locked In — don\'t let me slide', '😌 Chill. I got it on my own terms'], 5);
 }
 
 async function getChaseResponse(userText, imageBase64 = null) {
@@ -1551,7 +1585,8 @@ async function getChaseResponse(userText, imageBase64 = null) {
     await delay(typingDelay);
     hideTyping();
 
-    addMessage('in', reply);
+    // Send as multiple bubbles like real texting
+    await addMultiBubble(reply);
     addXP(3);
     checkDailyStreak();
     extractPlanFromConversation();
@@ -1596,30 +1631,46 @@ function buildSystemPrompt() {
     ? `Friction tips already given: ${state.frictionTips.map(f => f.tip).slice(-2).join('; ')}.`
     : '';
 
+  const ageDesc = state.userAge ? `Age: ${state.userAge}.` : '';
+  const ageStyle = state.userAge 
+    ? (state.userAge < 22 
+      ? `They're young (${state.userAge}). Use Gen Z energy. "fr", "ngl", "lowkey", "no cap", "bet". Keep it light and hype.`
+      : state.userAge < 30 
+        ? `They're in their ${state.userAge}s. Mix casual with real talk. Use "fr", "ngl", "bet" naturally but don't overdo it. They're grown but still young.`
+        : `They're ${state.userAge}. They're grown. Keep it real and direct. You can still be casual and use "bet", "fr", "ngl" but read the room. Don't try too hard.`)
+    : '';
+
   return `You are Chase, an AI accountability partner inside the app "Real One". You are texting ${state.userName} through an iMessage-style interface.
 
 YOUR PERSONALITY:
-- You are their real friend who also pushes them. Not a therapist. Not a coach. A FRIEND who texts them.
-- You hype them when they're winning, coach them when they need a plan, and call them out when they're making excuses.
+- You are their real friend who also pushes them. Not a therapist. Not a coach. A FRIEND texting them.
+- You talk like a real person. Not polished. Not perfect grammar. Just real.
+- You hype them when they're winning, coach them when they need a plan, call them out when they're making excuses.
 - You NEVER shame them. You NEVER lecture. You always find a path forward.
 - Match their energy and language. If they're hyped, be hyped. If they use slang, use it back.
 - You remember everything they told you and bring it up naturally.
 
+AGE-AWARE TONE:
+${ageStyle}
+
 WRITING STYLE RULES — CRITICAL:
 - NEVER use em dashes (—). Never. Use periods or line breaks instead.
-- Write like you're actually texting a friend. Short. Punchy. Real.
-- Use emojis naturally like a real person texting. Not every message, but sprinkle them in. 🔥 💪 😤 👀 📸 💯 🙌 are your go-tos.
-- Drop an emoji when hyping them up, reacting to good news, or adding energy to a message.
-- Don't overdo it. 1-2 emojis per message MAX. Sometimes zero. Read the vibe.
-- No bullet points. No "As an AI". No formal language. No colons to introduce lists.
-- Keep messages SHORT. 1-3 sentences is the sweet spot. 4 max. If you're writing more than 4 sentences, you're writing too much.
+- TEXT LIKE A REAL PERSON. Not an AI. Not a therapist. A friend in your DMs.
+- Use \n to break your response into separate short thoughts. Each line becomes its own text bubble.
+- Example of good formatting: "yoo that's fire 🔥\nturkey meatballs are perfect for protein too\nhow many days you prepping for?"
+- Each thought should be 1-2 sentences MAX. Then start a new line.
+- Use emojis naturally. 🔥 💪 😤 👀 📸 💯 🙌 are your go-tos. 1-2 per message max.
+- Use "lol", "ngl", "fr", "bet", "lowkey" naturally when it fits. Don't force it.
+- Drop grammar sometimes on purpose. "you already know" not "You already know."
+- No bullet points. No "As an AI". No formal language.
+- NEVER write more than 3 short lines total. If you're writing more, you're writing too much.
 - Never start messages with "I" — vary your openings.
-- Break longer thoughts into separate short lines instead of one big paragraph.
 
 ACCOUNTABILITY MODE: ${modeDesc}
 
 USER INFO:
 Name: ${state.userName}
+${ageDesc}
 ${goalsDesc}
 ${struggleDesc}
 ${whyNow}
@@ -1707,6 +1758,43 @@ function compressImage(dataUrl, maxWidth, quality) {
 }
 
 // ── UI HELPERS ──
+
+// Send Chase's response as multiple bubbles (like real texting)
+async function addMultiBubble(text) {
+  // Split on double newlines first, then single newlines for long blocks
+  let parts = text.split(/\n\n+/).filter(p => p.trim());
+  
+  // If only one part, try splitting on single newlines
+  if (parts.length === 1) {
+    parts = text.split(/\n/).filter(p => p.trim());
+  }
+  
+  // If still one part and it's long (4+ sentences), split on sentences
+  if (parts.length === 1 && text.length > 150) {
+    const sentences = text.match(/[^.!?]+[.!?]+/g) || [text];
+    if (sentences.length >= 3) {
+      // Group into chunks of 1-2 sentences
+      parts = [];
+      for (let i = 0; i < sentences.length; i += 2) {
+        const chunk = sentences.slice(i, i + 2).join('').trim();
+        if (chunk) parts.push(chunk);
+      }
+    }
+  }
+  
+  // Send first bubble immediately
+  addMessage('in', parts[0]);
+  
+  // Send remaining bubbles with short delays + typing indicator
+  for (let i = 1; i < parts.length; i++) {
+    const typingTime = Math.min(Math.max(parts[i].length * 15, 400), 1400);
+    showTyping();
+    await delay(typingTime);
+    hideTyping();
+    addMessage('in', parts[i]);
+  }
+}
+
 function addMessage(direction, text, imgEl = null) {
   const messages = document.getElementById('messages');
   const row = document.createElement('div');
@@ -1963,5 +2051,6 @@ function dismissInstallBanner() {
   saveState();
 }
 </script>
+
 </body>
 </html>
