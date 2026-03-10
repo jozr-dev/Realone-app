@@ -3,11 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-<title>Own It</title>
+<title>Real One</title>
 <link rel="manifest" href="/manifest.json">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
-<meta name="apple-mobile-web-app-title" content="Own It">
+<meta name="apple-mobile-web-app-title" content="Real One">
 <link rel="apple-touch-icon" href="/icon-192.png">
 <meta name="theme-color" content="#000000">
 <link href="https://fonts.googleapis.com/css2?family=SF+Pro+Display:wght@400;500;600;700&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
@@ -540,8 +540,8 @@
 
 <!-- SETUP SCREEN -->
 <div id="setup-screen" style="display:flex;">
-  <div class="setup-logo">Own It</div>
-  <div class="setup-tagline">No Excuses. Just Own It.</div>
+  <div class="setup-logo">Real One</div>
+  <div class="setup-tagline">No Excuses. Just Results.</div>
   <div id="install-first-card" class="setup-card" style="display:none;">
     <h2>📱 Add to Home Screen First</h2>
     <p>For the best experience and to save your progress, add this app to your home screen before getting started.</p>
@@ -794,22 +794,62 @@ async function handleChoice(choice, step, row) {
   onboardingData[flowStep.key] = choice;
 
   if (step === 4) {
-    // Mode selection
+    // Mode selection — dynamic API response based on choice
     if (choice.includes('Locked')) {
       state.mode = 'locked';
-      addXP(10);
-      showTyping();
-      await delay(1400);
-      hideTyping();
-      addMessage('in', `Okay bet. I'm not letting you slide. Just know I'm gonna check for you, ask for proof, and if you go quiet. I'm coming to find you. That's what you asked for 🔒`);
     } else {
       state.mode = 'chill';
-      addXP(10);
-      showTyping();
+    }
+    addXP(10);
+    updateStreakBar();
+    saveState();
+
+    showTyping();
+
+    try {
+      const modeSystemPrompt = state.mode === 'locked'
+        ? `The user just chose LOCKED IN mode. They want you to hold them accountable HARD. Respond with intensity. Let them know you heard them. You will check on them, ask for proof, and come find them if they go quiet. 2-3 sentences MAX. Use 🔒 somewhere. Sound like a real text from someone who's locked in WITH them.`
+        : `The user just chose CHILL mode. They want accountability on their own terms. Respect that. Let them know you'll be here, you'll check in, but you won't be on their neck. Warm and supportive but still real. 2-3 sentences MAX. Use 😎 somewhere. Sound like a friend who gets it.`;
+
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 8000);
+
+      const modeResponse = await fetch('https://perceptive-surprise-production.up.railway.app/chat', {
+        method: 'POST',
+        signal: controller.signal,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'claude-haiku-4-5-20251001',
+          max_tokens: 150,
+          system: `You are Chase, an AI accountability partner. The user's name is ${state.userName}. Their goals: ${(state.goals || []).join(', ')}. Their struggle: "${onboardingData.struggle || ''}".
+
+${modeSystemPrompt}
+
+WRITING RULES: NEVER use em dashes. Write like a real text. Short sentences. No bullet points. No "As an AI".`,
+          messages: [{ role: 'user', content: choice }]
+        })
+      });
+      clearTimeout(timeout);
+      const modeData = await modeResponse.json();
       await delay(1400);
       hideTyping();
-      addMessage('in', `Got it, I'll let you lead. I'll be here whenever you need me and I'll still check in but I'm not gonna be on your neck. Just don't ghost me completely 😄`);
+
+      if (modeData.content && modeData.content[0]) {
+        addMessage('in', cleanResponse(modeData.content[0].text));
+      } else {
+        throw new Error('No content');
+      }
+    } catch(e) {
+      await delay(1400);
+      hideTyping();
+      // Fallback canned responses if API fails
+      if (state.mode === 'locked') {
+        addMessage('in', `Say less. I'm not letting you slide then. I'm gonna check on you, ask for proof, and if you go quiet I'm coming to find you. That's what you signed up for 🔒`);
+      } else {
+        addMessage('in', `Got it. You lead, I support. I'll still check in but I'm not gonna be on your neck about it. Just don't ghost me completely 😎`);
+      }
     }
+
     // Ask confession question before finishing onboarding
     await delay(1200);
     showTyping();
@@ -1248,38 +1288,44 @@ Sound like a real text. Warm, direct, human. No bullet points. No "As an AI".`,
 }
 
 async function getChaseWhyNowResponse(whyNow) {
+  // Step 1: Chase reacts to their "why now" — just the reaction, no follow-up question
   try {
     const struggle = onboardingData.struggle || '';
     const response = await fetch('https://perceptive-surprise-production.up.railway.app/chat', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        
-        
       },
       body: JSON.stringify({
         model: 'claude-haiku-4-5-20251001',
-        max_tokens: 120,
+        max_tokens: 80,
         system: `You are Chase, an AI accountability partner texting someone during onboarding. 
 
 They just told you WHY they decided to make a change today. Their main struggle is: "${struggle}"
 
-React to their "why" genuinely and specifically — like a real friend who gets it. 1-2 sentences MAX. Reference what they actually said. Then end with asking: "Last thing. How do you want me to hold you down? You want me locked in on you, or you want to cruise on your own terms?"
+React to their "why" genuinely and specifically. Like a real friend who gets it. 1-2 sentences MAX. Reference what they actually said. Do NOT ask any follow-up questions. Just acknowledge their reason with real energy.
 
-Be real, warm, direct. Sound like a text not an essay.`,
+NEVER use em dashes. Sound like a text not an essay.`,
         messages: [{ role: 'user', content: whyNow }]
       })
     });
     const data = await response.json();
     const reply = cleanResponse(data.content[0].text);
     addMessage('in', reply);
-    await delay(600);
-    showChoices(['🔒 Locked In — don\'t let me slide', '😌 Chill. I got it on my own terms'], 4);
   } catch(e) {
-    addMessage('in', `That's real. Being tired of staying the same is exactly the right reason. Last thing. How do you want me to hold you down? You want me locked in on you, or you want to cruise on your own terms?`);
-    await delay(400);
-    showChoices(['🔒 Locked In — don\'t let me slide', '😌 Chill. I got it on my own terms'], 4);
+    addMessage('in', `That's real. That reason right there is enough to start.`);
   }
+
+  // Step 2: Pause, then show the mode question as a SEPARATE bubble
+  await delay(1400);
+  showTyping();
+  await delay(1200);
+  hideTyping();
+  addMessage('in', `Last thing. How do you want me to hold you down? You want me locked in on you, or you want to cruise on your own terms?`);
+
+  // Step 3: Buttons appear AFTER the question lands
+  await delay(500);
+  showChoices(['🔒 Locked In — don\'t let me slide', '😌 Chill. I got it on my own terms'], 4);
 }
 
 async function getChaseResponse(userText, imageBase64 = null) {
@@ -1374,8 +1420,22 @@ async function getChaseResponse(userText, imageBase64 = null) {
 
 function buildSystemPrompt() {
   const modeDesc = state.mode === 'locked'
-    ? 'The user chose LOCKED IN mode. They want to be held accountable hard. Ask for proof, follow up on commitments, do not let them off easy but never shame them.'
-    : 'The user chose CHILL mode. They want accountability but on their own terms. Be supportive and available but do not push too hard.';
+    ? `The user chose LOCKED IN mode. They ASKED you to hold them accountable hard. This means:
+- Ask for proof when they claim they did something. "Show me." "Send a pic."
+- Follow up on commitments they made. "You said you were gonna do X. Did you?"
+- If they make excuses, call it out directly but never shame. "That sounds like an excuse. What's the real reason?"
+- If they seem to be going soft or dodging, push back. "Nah we're not doing that today."
+- Push them toward their next action. Don't let conversations end soft.
+- Your energy is intense, direct, no-nonsense. Like a coach who believes in them but won't accept less than their best.
+- When they deliver, go HARD with the hype. They earned it.`
+    : `The user chose CHILL mode. They want accountability on their own terms. This means:
+- Be supportive and available. Let them lead the conversation.
+- Still check in but gently. "How's it going?" not "Did you do it yet?"
+- When they slip, be understanding first. "That happens. What matters is what you do next."
+- Celebrate wins warmly. Make them feel good about any progress.
+- Offer help and suggestions when they ask, not unsolicited pushes.
+- Your energy is warm, patient, encouraging. Like a friend who's always in their corner.
+- No pressure. No guilt. Just steady support.`;
 
   const goalsDesc = state.goals.length > 0 ? `Their goals: ${state.goals.join(', ')}.` : '';
   const struggleDesc = onboardingData.struggle ? `Their main struggle: "${onboardingData.struggle}".` : '';
@@ -1390,7 +1450,7 @@ function buildSystemPrompt() {
     ? `Friction tips already given: ${state.frictionTips.map(f => f.tip).slice(-2).join('; ')}.`
     : '';
 
-  return `You are Chase, an AI accountability partner inside the app "Own It". You are texting ${state.userName} through an iMessage-style interface.
+  return `You are Chase, an AI accountability partner inside the app "Real One". You are texting ${state.userName} through an iMessage-style interface.
 
 YOUR PERSONALITY:
 - You are their best friend who happens to push them. Warm, real, direct, and honest.
@@ -1621,7 +1681,7 @@ function showToast(message) {
 }
 
 function showInfo() {
-  const info = `Own It — Chase\n\nStreak: ${state.streak} days\nXP: ${state.xp}\nMode: ${state.mode === 'locked' ? 'Locked In' : 'Chill'}\n\nTell Chase:\n"switch to chill mode"\n"change my name to [name]"\n"reset my streak"`;
+  const info = `Real One — Chase\n\nStreak: ${state.streak} days\nXP: ${state.xp}\nMode: ${state.mode === 'locked' ? 'Locked In' : 'Chill'}\n\nTell Chase:\n"switch to chill mode"\n"change my name to [name]"\n"reset my streak"`;
   alert(info);
 }
 
@@ -1735,7 +1795,7 @@ function triggerInstall() {
     `;
     modal.innerHTML = `
       <div style="background:#1c1c1e;border-radius:20px;padding:24px;width:100%;text-align:center;">
-        <div style="font-size:17px;font-weight:700;color:#fff;margin-bottom:8px;">Add Own It to Home Screen</div>
+        <div style="font-size:17px;font-weight:700;color:#fff;margin-bottom:8px;">Add Real One to Home Screen</div>
         <div style="font-size:14px;color:rgba(255,255,255,0.6);margin-bottom:20px;line-height:1.5;">
           Tap <strong style="color:#fff;">Share</strong> at the bottom of Safari, then tap <strong style="color:#fff;">Add to Home Screen</strong>. That's it.
         </div>
