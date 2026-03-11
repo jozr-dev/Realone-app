@@ -864,51 +864,56 @@ function launchApp() {
 const onboardingFlow = [
   {
     step: 0,
-    message: (name) => `Yo what's good ${name} 👋 I'm Chase. Before we get into it tho. how old are you? not being weird I just wanna know who I'm talking to lol`,
-    freeText: true,
-    key: 'age'
+    message: (name) => `Yo ${name} 👋 I'm Chase`,
+    followUp: (name) => `so before we get into it. coffee or energy drinks? I need to know what kind of person I'm working with lol`,
+    choices: ['☕ Coffee', '⚡ Energy drink', '💧 Water only', '🤷 Both tbh'],
+    key: 'drinkChoice'
   },
   {
     step: 1,
     message: (name, prev) => {
-      const age = parseInt(prev) || 25;
-      if (age < 21) return `Okay okay still young. you got time on your side fr. Alright so coffee or energy drinks in the morning?`;
-      if (age < 30) return `${age}. solid. you're in your prime right now let's make it count. Quick question tho. coffee or energy drinks in the morning?`;
-      return `${age}. okay I see you. you already know what's up then. Real quick tho. coffee or energy drinks?`;
+      const reactions = {
+        '☕ Coffee': `okay respect. coffee people are usually about their business 😤`,
+        '⚡ Energy drink': `energy drink gang lol. you're that person`,
+        '💧 Water only': `water only?? okay you're actually built different`,
+        '🤷 Both tbh': `both?! lmao you're not taking any chances 😂`
+      };
+      return reactions[prev] || `solid choice`;
     },
-    choices: ['☕ Coffee', '⚡ Energy drink', '💧 Neither, water only', '🤷 Both tbh'],
-    key: 'drinkChoice'
+    followUp: (name) => `wait how old are you btw? just wanna know who I'm talking to`,
+    freeText: true,
+    key: 'age'
   },
   {
     step: 2,
     message: (name, prev) => {
-      const reactions = {
-        '☕ Coffee': `That's what's up. Nothing like a real cup to start the day. `,
-        '⚡ Energy drink': `Energy drink gang. Respect the commitment. `,
-        '💧 Neither, water only': `Water only?? Okay I see you, that's actually built different. `,
-        '🤷 Both tbh': `Both?! You're really out here not taking any chances 😂 `
-      };
-      return (reactions[prev] || '') + `So what are you working on? Like what areas of your life are you trying to lock in?`;
+      const age = parseInt(prev) || 25;
+      if (age < 21) return `okay okay still young fr. you got time on your side`;
+      if (age < 25) return `${age}. you're right in it. this is when it all starts clicking`;
+      if (age < 30) return `${age}. prime years right here. let's make em count`;
+      return `${age}. okay I see you. you already been through it then`;
     },
+    followUp: () => `so what are you trying to lock in? what areas of your life need work?`,
     choices: ['🍽️ Eating & diet', '💪 Fitness & workouts', '💼 Work & productivity', '🔥 All of the above'],
     key: 'goals'
   },
   {
     step: 3,
-    message: (name) => `Real talk ${name}. What's been the hardest thing to stay consistent with? Like what keeps slipping no matter what you try?`,
+    message: (name) => `real talk ${name}. what's been the hardest thing to stay consistent with? like what keeps slipping no matter what you try?`,
     freeText: true,
     key: 'struggle'
   },
   {
     step: 4,
-    message: () => `What made you decide to do something about it today?`,
+    message: () => `what made you decide to do something about it today?`,
     freeText: true,
     key: 'whyNow'
   },
   {
     step: 5,
-    message: () => `Last thing. How do you want me to hold you down? You want me locked in on you, or you want to cruise on your own terms?`,
-    choices: ['🔒 Locked In. Don\'t let me slide', '😌 Chill. I got it on my own terms'],
+    message: () => `last thing. how do you want me to hold you down?`,
+    followUp: () => `you want me locked in on you, or you want to cruise on your own terms?`,
+    choices: ['🔒 Locked In — don\'t let me slide', '😌 Chill. I got it on my own terms'],
     key: 'mode'
   }
 ];
@@ -916,14 +921,27 @@ const onboardingFlow = [
 let onboardingData = {};
 
 async function beginOnboarding() {
+  const step = onboardingFlow[0];
+  
+  // Send first bubble
   showTyping();
-  await delay(1200);
+  await delay(1000);
   hideTyping();
-  addMessage('in', onboardingFlow[0].message(state.userName));
-  if (onboardingFlow[0].choices) {
-    showChoices(onboardingFlow[0].choices, 0);
+  addMessage('in', step.message(state.userName));
+  
+  // Send follow-up bubble if exists (with typing delay)
+  if (step.followUp) {
+    showTyping();
+    await delay(800 + Math.random() * 400);
+    hideTyping();
+    addMessage('in', step.followUp(state.userName));
   }
-  // If freeText (like age question), user just types naturally
+
+  // Show choices or wait for free text
+  if (step.choices) {
+    await delay(300);
+    showChoices(step.choices, 0);
+  }
 }
 
 function showChoices(choices, step) {
@@ -943,93 +961,97 @@ function showChoices(choices, step) {
 }
 
 async function handleChoice(choice, step, row) {
-  // Disable all buttons
   row.querySelectorAll('button').forEach(b => b.disabled = true);
-  // Send as user message
   addMessage('out', choice);
   row.remove();
 
   const flowStep = onboardingFlow[step];
   onboardingData[flowStep.key] = choice;
 
+  // Store goals when selected
+  if (flowStep.key === 'goals') {
+    state.goals = choice.includes('All') ? ['eating', 'fitness', 'work'] : [choice.toLowerCase()];
+  }
+
+  // Mode selection (step 5) — dynamic API response
   if (step === 5) {
-    // Mode selection — dynamic API response based on choice
-    if (choice.includes('Locked')) {
-      state.mode = 'locked';
-    } else {
-      state.mode = 'chill';
-    }
+    state.mode = choice.includes('Locked') ? 'locked' : 'chill';
     addXP(10);
     updateStreakBar();
     saveState();
 
     showTyping();
-
     try {
-      const modeSystemPrompt = state.mode === 'locked'
-        ? `The user just chose LOCKED IN mode. They want you to hold them accountable HARD. Respond with intensity and energy. Let them know you heard them and you're not playing. You will check on them, ask for proof, and come find them if they go quiet. 2-3 sentences MAX. Use 🔒 somewhere. Sound like a real text from someone who's locked in WITH them.`
-        : `The user just chose CHILL mode. They want accountability on their own terms. Respect that. Let them know you'll be here, you'll check in, but you won't be on their neck. Warm and supportive but still real. 2-3 sentences MAX. Use 😎 somewhere. Sound like a friend who gets it.`;
+      const modePrompt = state.mode === 'locked'
+        ? `The user chose LOCKED IN. Respond with intensity. You're checking on them, asking for proof, coming to find them if they go quiet. 1-2 short sentences. Use 🔒. Sound like a real text.`
+        : `The user chose CHILL. Respect it. You'll be here, check in, but not on their neck. 1-2 short sentences. Use 😎. Sound like a friend.`;
 
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 8000);
-
-      const modeResponse = await fetch('https://perceptive-surprise-production.up.railway.app/chat', {
+      const modeResponse = await fetch(API_BASE + '/chat', {
         method: 'POST',
         signal: controller.signal,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           model: 'claude-haiku-4-5-20251001',
-          max_tokens: 150,
-          system: `You are Chase, an AI accountability partner. The user's name is ${state.userName}. Their goals: ${(state.goals || []).join(', ')}. Their struggle: "${onboardingData.struggle || ''}".
-
-${modeSystemPrompt}
-
-WRITING RULES: NEVER use em dashes. Write like a real text. Short sentences. No bullet points. No "As an AI".`,
+          max_tokens: 100,
+          system: `You are Chase. User: ${state.userName}. Goals: ${(state.goals || []).join(', ')}. Struggle: "${onboardingData.struggle || ''}". ${modePrompt} NEVER use em dashes. Keep it short and real.`,
           messages: [{ role: 'user', content: choice }]
         })
       });
       clearTimeout(timeout);
       const modeData = await modeResponse.json();
-      await delay(1400);
+      await delay(1200);
       hideTyping();
-
       if (modeData.content && modeData.content[0]) {
         addMessage('in', cleanResponse(modeData.content[0].text));
-      } else {
-        throw new Error('No content');
-      }
+      } else throw new Error('No content');
     } catch(e) {
-      await delay(1400);
+      await delay(1200);
       hideTyping();
       if (state.mode === 'locked') {
-        addMessage('in', `Say less. I'm not letting you slide then 🔒 I'm gonna check on you, ask for proof, and if you go quiet I'm coming to find you.`);
+        addMessage('in', `say less 🔒 I'm not letting you slide`);
       } else {
-        addMessage('in', `Got it. You lead, I support 😎 I'll still check in but I'm not gonna be on your neck. Just don't ghost me completely.`);
+        addMessage('in', `got it. you lead, I support 😎`);
       }
     }
 
-    // Ask confession question before finishing onboarding
-    await delay(1200);
+    // Confession question
+    await delay(1000);
     showTyping();
-    await delay(1600);
+    await delay(1200);
     hideTyping();
-    addMessage('in', `Real talk ${state.userName}. What is the one thing you keep doing that you know is holding you back? The habit or pattern that keeps getting in the way. Be honest with me.`);
+    addMessage('in', `real talk ${state.userName}. what's the one thing you keep doing that you KNOW is holding you back?`);
+    await delay(600);
+    showTyping();
+    await delay(800);
+    hideTyping();
+    addMessage('in', `the habit or pattern that keeps getting in the way. be honest with me.`);
     return;
   }
 
-  if (step === 2) {
-    state.goals = choice.includes('All') ? ['eating', 'fitness', 'work'] : [choice.toLowerCase()];
-  }
-
+  // For all other steps — send reaction as multi-bubble, then next question
   showTyping();
-  await delay(1200 + Math.random() * 600);
+  await delay(600 + Math.random() * 400);
   hideTyping();
 
   const nextStep = step + 1;
   const next = onboardingFlow[nextStep];
+
+  // Send the reaction message
   addMessage('in', next.message(state.userName, choice));
 
-  if (next.choices) {
+  // Send follow-up as separate bubble
+  if (next.followUp) {
+    showTyping();
+    await delay(600 + Math.random() * 400);
+    hideTyping();
+    addMessage('in', next.followUp(state.userName));
+  }
+
+  // Show choices or wait for free text
+  if (next.choices && !next.freeText) {
+    await delay(300);
     showChoices(next.choices, nextStep);
   }
   // freeText steps — user types naturally
@@ -1400,20 +1422,33 @@ function cleanResponse(text) {
 
 async function handleOnboardingFreeText(text) {
   if (!onboardingData.age) {
-    // Age step — store it and move to next step (coffee question)
+    // Age response — store it, show reaction + goals question
     const age = parseInt(text) || 25;
     onboardingData.age = age;
     state.userAge = age;
     saveState();
 
     showTyping();
-    await delay(800 + Math.random() * 400);
+    await delay(600 + Math.random() * 400);
     hideTyping();
 
-    // Show the age reaction + coffee question (step 1)
-    const next = onboardingFlow[1];
-    addMessage('in', next.message(state.userName, text));
-    showChoices(next.choices, 1);
+    // Age reaction (step 2)
+    const step2 = onboardingFlow[2];
+    addMessage('in', step2.message(state.userName, text));
+
+    // Follow-up: goals question
+    if (step2.followUp) {
+      showTyping();
+      await delay(500 + Math.random() * 300);
+      hideTyping();
+      addMessage('in', step2.followUp(state.userName));
+    }
+
+    // Show goals choices
+    if (step2.choices) {
+      await delay(300);
+      showChoices(step2.choices, 2);
+    }
   } else if (!onboardingData.struggle) {
     onboardingData.struggle = text;
     showTyping();
@@ -1491,15 +1526,20 @@ NEVER use em dashes. Sound like a text not an essay.`,
     addMessage('in', `That's real 💯 That reason right there is enough to start.`);
   }
 
-  // Step 2: Pause, then show the mode question as a SEPARATE bubble
-  await delay(1400);
-  showTyping();
+  // Step 2: Pause, then show the mode question as SEPARATE bubbles
   await delay(1200);
+  showTyping();
+  await delay(800);
   hideTyping();
-  addMessage('in', `Last thing. How do you want me to hold you down? You want me locked in on you, or you want to cruise on your own terms?`);
+  addMessage('in', `last thing. how do you want me to hold you down?`);
+  
+  showTyping();
+  await delay(600);
+  hideTyping();
+  addMessage('in', `you want me locked in on you, or you want to cruise on your own terms?`);
 
   // Step 3: Buttons appear AFTER the question lands
-  await delay(500);
+  await delay(400);
   showChoices(['🔒 Locked In — don\'t let me slide', '😌 Chill. I got it on my own terms'], 5);
 }
 
@@ -1757,25 +1797,35 @@ function compressImage(dataUrl, maxWidth, quality) {
 
 // Send Chase's response as multiple bubbles (like real texting)
 async function addMultiBubble(text) {
-  // Split on double newlines first, then single newlines for long blocks
-  let parts = text.split(/\n\n+/).filter(p => p.trim());
+  // First try splitting on newlines (if AI formatted correctly)
+  let parts = text.split(/\n+/).filter(p => p.trim());
   
-  // If only one part, try splitting on single newlines
-  if (parts.length === 1) {
-    parts = text.split(/\n/).filter(p => p.trim());
-  }
-  
-  // If still one part and it's long (4+ sentences), split on sentences
-  if (parts.length === 1 && text.length > 150) {
+  // If still one big block, split on sentences
+  if (parts.length === 1 && text.length > 80) {
     const sentences = text.match(/[^.!?]+[.!?]+/g) || [text];
-    if (sentences.length >= 3) {
-      // Group into chunks of 1-2 sentences
+    if (sentences.length >= 2) {
       parts = [];
       for (let i = 0; i < sentences.length; i += 2) {
-        const chunk = sentences.slice(i, i + 2).join('').trim();
+        const chunk = sentences.slice(i, Math.min(i + 2, sentences.length)).join('').trim();
         if (chunk) parts.push(chunk);
       }
     }
+  }
+  
+  // If somehow still one huge chunk (no punctuation), split at ~80 chars on word boundary
+  if (parts.length === 1 && text.length > 120) {
+    parts = [];
+    const words = text.split(' ');
+    let current = '';
+    for (const word of words) {
+      if ((current + ' ' + word).length > 80 && current.length > 0) {
+        parts.push(current.trim());
+        current = word;
+      } else {
+        current = current ? current + ' ' + word : word;
+      }
+    }
+    if (current.trim()) parts.push(current.trim());
   }
   
   // Send first bubble immediately
@@ -1783,7 +1833,7 @@ async function addMultiBubble(text) {
   
   // Send remaining bubbles with short delays + typing indicator
   for (let i = 1; i < parts.length; i++) {
-    const typingTime = Math.min(Math.max(parts[i].length * 15, 400), 1400);
+    const typingTime = Math.min(Math.max(parts[i].length * 12, 350), 1000);
     showTyping();
     await delay(typingTime);
     hideTyping();
