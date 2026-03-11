@@ -860,92 +860,81 @@ function launchApp() {
   }
 }
 
-// ── ONBOARDING ──
-const onboardingFlow = [
-  {
-    step: 0,
-    message: (name) => `Yo ${name} 👋 I'm Chase`,
-    followUp: (name) => `so before we get into it. coffee or energy drinks? I need to know what kind of person I'm working with lol`,
-    choices: ['☕ Coffee', '⚡ Energy drink', '💧 Water only', '🤷 Both tbh'],
-    key: 'drinkChoice'
-  },
-  {
-    step: 1,
-    message: (name, prev) => {
-      const reactions = {
-        '☕ Coffee': `okay respect. coffee people are usually about their business 😤`,
-        '⚡ Energy drink': `energy drink gang lol. you're that person`,
-        '💧 Water only': `water only?? okay you're actually built different`,
-        '🤷 Both tbh': `both?! lmao you're not taking any chances 😂`
-      };
-      return reactions[prev] || `solid choice`;
-    },
-    followUp: (name) => `wait how old are you btw? just wanna know who I'm talking to`,
-    freeText: true,
-    key: 'age'
-  },
-  {
-    step: 2,
-    message: (name, prev) => {
-      const age = parseInt(prev) || 25;
-      if (age < 21) return `okay okay still young fr. you got time on your side`;
-      if (age < 25) return `${age}. you're right in it. this is when it all starts clicking`;
-      if (age < 30) return `${age}. prime years right here. let's make em count`;
-      return `${age}. okay I see you. you already been through it then`;
-    },
-    followUp: () => `so what are you trying to lock in? what areas of your life need work?`,
-    choices: ['🍽️ Eating & diet', '💪 Fitness & workouts', '💼 Work & productivity', '🔥 All of the above'],
-    key: 'goals'
-  },
-  {
-    step: 3,
-    message: (name) => `real talk ${name}. what's been the hardest thing to stay consistent with? like what keeps slipping no matter what you try?`,
-    freeText: true,
-    key: 'struggle'
-  },
-  {
-    step: 4,
-    message: () => `what made you decide to do something about it today?`,
-    freeText: true,
-    key: 'whyNow'
-  },
-  {
-    step: 5,
-    message: () => `last thing. how do you want me to hold you down?`,
-    followUp: () => `you want me locked in on you, or you want to cruise on your own terms?`,
-    choices: ['🔒 Locked In — don\'t let me slide', '😌 Chill. I got it on my own terms'],
-    key: 'mode'
-  }
-];
+// ── ONBOARDING — CONVERSATIONAL ENGINE ──
+// Chase has a GOAL (learn about the person) but no rigid script.
+// The API drives the conversation. The app tracks what info has been collected.
 
 let onboardingData = {};
+let onboardingHistory = []; // separate conversation history for onboarding
+
+function getOnboardingSystemPrompt() {
+  const collected = [];
+  const missing = [];
+  
+  if (onboardingData.age) collected.push(`Age: ${onboardingData.age}`);
+  else missing.push('age');
+  
+  if (onboardingData.goals) collected.push(`Goals: ${onboardingData.goals}`);
+  else missing.push('what areas of life they want to work on (eating/fitness/work/all)');
+  
+  if (onboardingData.struggle) collected.push(`Struggle: ${onboardingData.struggle}`);
+  else missing.push('their biggest struggle with consistency');
+  
+  if (onboardingData.whyNow) collected.push(`Why now: ${onboardingData.whyNow}`);
+  else missing.push('why they decided to make a change today');
+
+  if (onboardingData.confession) collected.push(`Self-sabotage: ${onboardingData.confession}`);
+
+  const collectedStr = collected.length > 0 ? `\n\nINFO ALREADY COLLECTED:\n${collected.join('\n')}` : '';
+  const missingStr = missing.length > 0 ? `\n\nSTILL NEED TO LEARN (work these in naturally, ONE at a time):\n- ${missing.join('\n- ')}` : '';
+
+  return `You are Chase, meeting ${state.userName} for the first time through text. This is onboarding.
+
+YOUR VIBE: You're meeting someone new at a party or a barbecue. You're naturally curious, funny, and real. You're NOT filling out a form. You're having a genuine conversation and getting to know them.
+
+RULES — READ THESE CAREFULLY:
+- Send SHORT messages. One thought per message. Separate thoughts with \n so each becomes its own text bubble.
+- Example: "okay respect 😤\nso what are you working on? like what areas of your life need some leveling up?"
+- NEVER combine a reaction AND a question in the same line. React first (one line). Then ask (next line).
+- Ask ONE question at a time. Never two questions in one message.
+- Use their exact words back to them. If they said "low carb high protein" say "low carb high protein" not "your diet goals."
+- React to EVERYTHING they say before asking the next thing. "okay that makes sense" or "yo same" or "ngl that's real"
+- Keep it lowercase. Messy grammar is fine. This is texting not an essay.
+- Use emojis sparingly. 1-2 per response max. Sometimes zero.
+- NEVER use em dashes (—). Use periods or line breaks.
+- NEVER say "As an AI" or anything that breaks character.
+- Keep total response under 3 short lines.
+${collectedStr}
+${missingStr}
+
+${missing.length === 0 ? 'You have all the info you need. Wrap up the getting-to-know-you phase. Tell them you got them and transition to asking how they want to be held accountable — locked in (hard accountability) or chill (on their terms). Frame it naturally like: "last thing. you want me locked in on you or you wanna cruise on your own terms?"' : ''}
+
+PERSONALITY CALIBRATION:
+${state.userAge ? (state.userAge < 22 ? 'They\'re young. Gen Z energy. "fr", "ngl", "lowkey", "no cap". Keep it light.' : state.userAge < 30 ? 'Mid-to-late 20s. Mix casual and real. "fr", "bet", "ngl" are fine.' : 'They\'re 30+. Keep it real and direct. Casual but not trying too hard with slang.') : 'Age unknown yet. Keep it neutral-casual.'}`;
+}
 
 async function beginOnboarding() {
-  const step = onboardingFlow[0];
-  
-  // Send first bubble
+  // Chase opens naturally — multi-bubble intro
   showTyping();
   await delay(1000);
   hideTyping();
-  addMessage('in', step.message(state.userName));
+  addMessage('in', `yo ${state.userName} 👋`);
   
-  // Send follow-up bubble if exists (with typing delay)
-  if (step.followUp) {
-    showTyping();
-    await delay(800 + Math.random() * 400);
-    hideTyping();
-    addMessage('in', step.followUp(state.userName));
-  }
+  showTyping();
+  await delay(600);
+  hideTyping();
+  addMessage('in', `I'm Chase`);
 
-  // Show choices or wait for free text
-  if (step.choices) {
-    await delay(300);
-    showChoices(step.choices, 0);
-  }
+  showTyping();
+  await delay(800);
+  hideTyping();
+  addMessage('in', `before we get into it. coffee or energy drinks? gotta know what kind of person I'm working with lol`);
+
+  await delay(300);
+  showOnboardingChoices(['☕ Coffee', '⚡ Energy drink', '💧 Water only', '🤷 Both tbh']);
 }
 
-function showChoices(choices, step) {
-  state.pendingChoices = { choices, step };
+function showOnboardingChoices(choices) {
   const row = document.createElement('div');
   row.className = 'choice-row';
   row.id = 'choice-row';
@@ -953,184 +942,271 @@ function showChoices(choices, step) {
     const btn = document.createElement('button');
     btn.className = 'choice-btn';
     btn.textContent = c;
-    btn.onclick = () => handleChoice(c, step, row);
+    btn.onclick = () => {
+      row.querySelectorAll('button').forEach(b => b.disabled = true);
+      addMessage('out', c);
+      row.remove();
+      handleOnboardingMessage(c);
+    };
     row.appendChild(btn);
   });
   document.getElementById('messages').appendChild(row);
   scrollToBottom();
 }
 
-async function handleChoice(choice, step, row) {
-  row.querySelectorAll('button').forEach(b => b.disabled = true);
-  addMessage('out', choice);
-  row.remove();
+// The main onboarding conversation handler — every message goes through the API
+async function handleOnboardingMessage(text) {
+  // Add user message to onboarding history
+  onboardingHistory.push({ role: 'user', content: text });
 
-  const flowStep = onboardingFlow[step];
-  onboardingData[flowStep.key] = choice;
+  // Try to extract info from what they said
+  extractOnboardingInfo(text);
 
-  // Store goals when selected
-  if (flowStep.key === 'goals') {
-    state.goals = choice.includes('All') ? ['eating', 'fitness', 'work'] : [choice.toLowerCase()];
+  // Check if we need to show mode selection
+  if (onboardingData.age && onboardingData.goals && onboardingData.struggle && onboardingData.whyNow && !onboardingData.mode) {
+    // We have everything — let the API deliver the mode question naturally
   }
 
-  // Mode selection (step 5) — dynamic API response
-  if (step === 5) {
-    state.mode = choice.includes('Locked') ? 'locked' : 'chill';
+  showTyping();
+
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10000);
+
+    const response = await fetch(API_BASE + '/chat', {
+      method: 'POST',
+      signal: controller.signal,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 150,
+        system: getOnboardingSystemPrompt(),
+        messages: onboardingHistory
+      })
+    });
+    clearTimeout(timeout);
+    const data = await response.json();
+    
+    if (!data.content || !data.content[0]) throw new Error('No content');
+    
+    const reply = cleanResponse(data.content[0].text);
+    onboardingHistory.push({ role: 'assistant', content: reply });
+
+    // Dynamic typing delay
+    const typingTime = Math.min(Math.max(reply.length * 12, 500), 2000);
+    await delay(typingTime);
+    hideTyping();
+
+    // Render as multi-bubble
+    await addMultiBubble(reply);
+
+    // Check if Chase just asked about mode (look for "locked in" and "own terms" in the response)
+    if (reply.toLowerCase().includes('locked in') && reply.toLowerCase().includes('own terms') && onboardingData.whyNow) {
+      await delay(400);
+      showOnboardingChoices(['🔒 Locked In — don\'t let me slide', '😌 Chill. I got it on my own terms']);
+      return;
+    }
+
+    addXP(5);
+    saveState();
+
+  } catch(e) {
+    hideTyping();
+    // Fallback — just keep the conversation going with a generic prompt
+    addMessage('in', `that's real. tell me more`);
+    onboardingHistory.push({ role: 'assistant', content: `that's real. tell me more` });
+    console.error('Onboarding API error:', e);
+  }
+}
+
+function extractOnboardingInfo(text) {
+  const lower = text.toLowerCase();
+  
+  // Extract age from numbers
+  if (!onboardingData.age) {
+    const ageMatch = text.match(/\b(\d{1,2})\b/);
+    if (ageMatch) {
+      const age = parseInt(ageMatch[1]);
+      if (age >= 13 && age <= 80) {
+        onboardingData.age = age;
+        state.userAge = age;
+      }
+    }
+  }
+
+  // Extract goals from choice buttons or keywords
+  if (!onboardingData.goals) {
+    if (lower.includes('eating') || lower.includes('diet') || lower.includes('food')) {
+      onboardingData.goals = 'eating & diet';
+      state.goals = ['eating'];
+    } else if (lower.includes('fitness') || lower.includes('workout') || lower.includes('gym')) {
+      onboardingData.goals = 'fitness & workouts';
+      state.goals = ['fitness'];
+    } else if (lower.includes('work') || lower.includes('productivity') || lower.includes('productive')) {
+      onboardingData.goals = 'work & productivity';
+      state.goals = ['work'];
+    } else if (lower.includes('all') || lower.includes('everything')) {
+      onboardingData.goals = 'all of the above';
+      state.goals = ['eating', 'fitness', 'work'];
+    }
+  }
+
+  // Extract struggle (if goals are set and this is a freetext response about struggle)
+  if (onboardingData.goals && !onboardingData.struggle && !onboardingData.age_just_set) {
+    // If it's not a number and not a choice button text, it's probably the struggle
+    if (!text.match(/^\d+$/) && !text.includes('Coffee') && !text.includes('Energy') && !text.includes('Water') && !text.includes('Both') && !text.includes('Eating') && !text.includes('Fitness') && !text.includes('Work') && !text.includes('All of') && text.length > 5) {
+      onboardingData.struggle = text;
+    }
+  }
+
+  // Extract whyNow (if struggle is set)
+  if (onboardingData.struggle && !onboardingData.whyNow && !text.includes('Locked') && !text.includes('Chill')) {
+    if (text.length > 3 && text !== onboardingData.struggle) {
+      onboardingData.whyNow = text;
+    }
+  }
+
+  // Mode selection
+  if (text.includes('Locked')) {
+    onboardingData.mode = 'locked';
+    state.mode = 'locked';
+  } else if (text.includes('Chill')) {
+    onboardingData.mode = 'chill';
+    state.mode = 'chill';
+  }
+  
+  saveState();
+}
+
+// Override sendMessage during onboarding to use the conversation engine
+async function handleOnboardingFreeText(text) {
+  // Check if user just selected a mode
+  if (text.includes('Locked') || text.includes('Chill')) {
+    onboardingData.mode = text.includes('Locked') ? 'locked' : 'chill';
+    state.mode = onboardingData.mode;
     addXP(10);
     updateStreakBar();
     saveState();
 
+    // Get mode response from API
+    onboardingHistory.push({ role: 'user', content: text });
     showTyping();
+
     try {
       const modePrompt = state.mode === 'locked'
-        ? `The user chose LOCKED IN. Respond with intensity. You're checking on them, asking for proof, coming to find them if they go quiet. 1-2 short sentences. Use 🔒. Sound like a real text.`
-        : `The user chose CHILL. Respect it. You'll be here, check in, but not on their neck. 1-2 short sentences. Use 😎. Sound like a friend.`;
+        ? `The user chose LOCKED IN. React with intensity. You heard them. You're not playing. 1 short line. Use 🔒.`
+        : `The user chose CHILL. Respect it. Warm and supportive. 1 short line. Use 😎.`;
 
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 8000);
-      const modeResponse = await fetch(API_BASE + '/chat', {
+      const response = await fetch(API_BASE + '/chat', {
         method: 'POST',
         signal: controller.signal,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           model: 'claude-haiku-4-5-20251001',
-          max_tokens: 100,
-          system: `You are Chase. User: ${state.userName}. Goals: ${(state.goals || []).join(', ')}. Struggle: "${onboardingData.struggle || ''}". ${modePrompt} NEVER use em dashes. Keep it short and real.`,
-          messages: [{ role: 'user', content: choice }]
+          max_tokens: 60,
+          system: `You are Chase. ${modePrompt} NEVER use em dashes. Lowercase. One short text message only.`,
+          messages: [{ role: 'user', content: text }]
         })
       });
       clearTimeout(timeout);
-      const modeData = await modeResponse.json();
-      await delay(1200);
+      const data = await response.json();
+      await delay(1000);
       hideTyping();
-      if (modeData.content && modeData.content[0]) {
-        addMessage('in', cleanResponse(modeData.content[0].text));
-      } else throw new Error('No content');
+      if (data.content && data.content[0]) {
+        addMessage('in', cleanResponse(data.content[0].text));
+      } else throw new Error();
     } catch(e) {
-      await delay(1200);
+      await delay(1000);
       hideTyping();
-      if (state.mode === 'locked') {
-        addMessage('in', `say less 🔒 I'm not letting you slide`);
-      } else {
-        addMessage('in', `got it. you lead, I support 😎`);
-      }
+      addMessage('in', state.mode === 'locked' ? `say less 🔒` : `got you 😎`);
     }
 
-    // Confession question
-    await delay(1000);
+    // Confession question — multi-bubble
+    await delay(800);
     showTyping();
-    await delay(1200);
+    await delay(900);
     hideTyping();
     addMessage('in', `real talk ${state.userName}. what's the one thing you keep doing that you KNOW is holding you back?`);
-    await delay(600);
+    
     showTyping();
-    await delay(800);
+    await delay(600);
     hideTyping();
-    addMessage('in', `the habit or pattern that keeps getting in the way. be honest with me.`);
+    addMessage('in', `be honest with me`);
     return;
   }
 
-  // For all other steps — send reaction as multi-bubble, then next question
-  showTyping();
-  await delay(600 + Math.random() * 400);
-  hideTyping();
-
-  const nextStep = step + 1;
-  const next = onboardingFlow[nextStep];
-
-  // Send the reaction message
-  addMessage('in', next.message(state.userName, choice));
-
-  // Send follow-up as separate bubble
-  if (next.followUp) {
-    showTyping();
-    await delay(600 + Math.random() * 400);
-    hideTyping();
-    addMessage('in', next.followUp(state.userName));
+  // Check if this is the confession (mode is set, confession not yet)
+  if (onboardingData.mode && !onboardingData.confession) {
+    onboardingData.confession = text;
+    await getConfessionResponse(text);
+    return;
   }
 
-  // Show choices or wait for free text
-  if (next.choices && !next.freeText) {
-    await delay(300);
-    showChoices(next.choices, nextStep);
-  }
-  // freeText steps — user types naturally
+  // Everything else goes through the conversation engine
+  await handleOnboardingMessage(text);
 }
-
 async function getConfessionResponse(confession) {
-  // Store the confession
   if (confession && confession.length > 5) {
     state.confessions.push(confession);
     saveState();
   }
-
   showTyping();
-  
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 8000);
-
-    const response = await fetch('https://perceptive-surprise-production.up.railway.app/chat', {
+    const response = await fetch(API_BASE + '/chat', {
       method: 'POST',
       signal: controller.signal,
-      headers: {
-        'Content-Type': 'application/json',
-        
-        
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         model: 'claude-haiku-4-5-20251001',
-        max_tokens: 180,
-        system: `You are Chase, an AI accountability partner. The user just confessed their biggest self-sabotage habit.
-
-React with zero judgment. Acknowledge it like a real friend who gets it. Then give them ONE specific friction design tip — either make the bad habit harder to access OR make the good habit easier to start. Be concrete and specific to what they said.
-
-Example: If they said "I snack at night" say something like "Put the snacks in a hard-to-reach spot. Stock the front of your fridge with cut fruit and water. Make the bad choice take effort."
-
-2-3 sentences MAX. No bullet points. Sound like a text.`,
+        max_tokens: 120,
+        system: `You are Chase. The user just confessed their biggest self-sabotage habit. React with zero judgment like a real friend. Then give ONE specific friction tip to make the bad habit harder or the good habit easier. Be concrete and specific to what they said. Use \n to separate thoughts. 2 short lines MAX. Lowercase. No em dashes. No "As an AI".`,
         messages: [{ role: 'user', content: confession }]
       })
     });
     clearTimeout(timeout);
     const data = await response.json();
     hideTyping();
-    
-    if (!data.content || !data.content[0]) {
-      throw new Error('No content in response');
-    }
-    
+    if (!data.content || !data.content[0]) throw new Error('No content');
     const reply = cleanResponse(data.content[0].text);
-    
-    // Store the friction tip
     state.frictionTips.push({ habit: confession, tip: reply, date: new Date().toDateString() });
     saveState();
-    
-    addMessage('in', reply);
+    await addMultiBubble(reply);
   } catch(e) {
     hideTyping();
-    addMessage('in', `That takes guts to admit. That right there is exactly what we are going to work around. Now that I know, I will call it out when I see it coming.`);
-    console.error('Confession response error:', e);
+    addMessage('in', `that takes guts to admit fr`);
+    await delay(500);
+    showTyping();
+    await delay(600);
+    hideTyping();
+    addMessage('in', `that's exactly what we're gonna work around. now that I know, I'll call it out when I see it coming`);
   }
-  
-  await delay(1200);
+  await delay(1000);
   finishOnboarding();
 }
 
 async function finishOnboarding() {
   showTyping();
-  await delay(1600);
+  await delay(1200);
   hideTyping();
   state.onboardingDone = true;
   state.lastCheckIn = new Date().toDateString();
   state.streak = 1;
-  state.history = []; // Clear onboarding history so first real message is clean
+  state.history = [];
   addXP(50);
   saveState();
   updateStreakBar();
-  addMessage('in', `Okay ${state.userName}, I got you. Let's get to work 💪\n\nMy messages are always open. Hit me up whenever, whatever's on your mind. That's what I'm here for.`);
+  
+  addMessage('in', `okay ${state.userName}, I got you 💪`);
+  showTyping();
+  await delay(600);
+  hideTyping();
+  addMessage('in', `my messages are always open. hit me up whenever`);
   showToast('🔥 Day 1 streak started!');
 
-  // Request notification permission
   await delay(1500);
   requestNotificationPermission();
 }
@@ -1142,55 +1218,43 @@ function requestNotificationPermission() {
     return;
   }
   if (Notification.permission !== 'denied') {
-    // Show a friendly in-chat prompt before the browser popup
     const row = document.createElement('div');
     row.className = 'msg-row in';
-    row.id = 'notif-prompt';
     const bubble = document.createElement('div');
     bubble.className = 'bubble';
-    bubble.innerHTML = `One more thing. Can I send you morning check-ins even when the app is closed? That way you never have to remember to open it.`;
+    bubble.textContent = `one more thing. can I send you morning check-ins even when the app is closed?`;
     row.appendChild(bubble);
 
     const btnRow = document.createElement('div');
     btnRow.className = 'choice-row';
     const yesBtn = document.createElement('button');
     yesBtn.className = 'choice-btn';
-    yesBtn.textContent = '✅ Yeah send them';
+    yesBtn.textContent = '✅ yeah send them';
     yesBtn.onclick = async () => {
       btnRow.remove();
       const permission = await Notification.requestPermission();
       if (permission === 'granted') {
         scheduleNotifications();
-        showTyping();
-        await delay(800);
-        hideTyping();
-        addMessage('in', `Bet. I got you. I will check in with you every morning. No excuses.`);
+        showTyping(); await delay(600); hideTyping();
+        addMessage('in', `bet. checking in every morning. no excuses`);
       } else {
-        showTyping();
-        await delay(800);
-        hideTyping();
-        addMessage('in', `No worries. You can always come back and turn them on. I will be here.`);
+        showTyping(); await delay(600); hideTyping();
+        addMessage('in', `no worries. I'll be here whenever`);
       }
-      await delay(1200);
-      showTyping();
-      await delay(1600);
-      hideTyping();
-      addMessage('in', `So let's not wait. What are we actually going after TODAY? Right now. What's on the list?`);
+      await delay(1000);
+      showTyping(); await delay(800); hideTyping();
+      addMessage('in', `so what are we going after TODAY? what's on the list?`);
     };
     const noBtn = document.createElement('button');
     noBtn.className = 'choice-btn';
-    noBtn.textContent = `Nah I'll check in myself`;
+    noBtn.textContent = `nah I'll check in myself`;
     noBtn.onclick = async () => {
       btnRow.remove();
-      showTyping();
-      await delay(800);
-      hideTyping();
-      addMessage('in', `Cool. I will be here whenever you need me.`);
-      await delay(1200);
-      showTyping();
-      await delay(1600);
-      hideTyping();
-      addMessage('in', `So let's not wait. What are we actually going after TODAY? Right now. What's on the list?`);
+      showTyping(); await delay(600); hideTyping();
+      addMessage('in', `cool. I'll be here`);
+      await delay(1000);
+      showTyping(); await delay(800); hideTyping();
+      addMessage('in', `so what are we going after TODAY? what's on the list?`);
     };
     btnRow.appendChild(yesBtn);
     btnRow.appendChild(noBtn);
@@ -1205,342 +1269,97 @@ function handleInput(el) {
   el.style.height = 'auto';
   el.style.height = Math.min(el.scrollHeight, 120) + 'px';
   const btn = document.getElementById('send-btn');
-  if (el.value.trim()) {
-    btn.classList.add('visible');
-  } else {
-    btn.classList.remove('visible');
-  }
+  btn.classList.toggle('visible', !!el.value.trim());
 }
 
 function handleKey(e) {
-  if (e.key === 'Enter' && !e.shiftKey) {
-    e.preventDefault();
-    sendMessage();
-  }
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
 }
 
 async function sendMessage() {
   const input = document.getElementById('msg-input');
   const text = input.value.trim();
   if (!text) return;
-
   input.value = '';
   input.style.height = 'auto';
   document.getElementById('send-btn').classList.remove('visible');
-
   addMessage('out', text);
   addXP(5);
 
-  // Handle onboarding free text steps
   if (!state.onboardingDone) {
     await handleOnboardingFreeText(text);
     return;
   }
-
-  // Normal conversation
   await getChaseResponse(text);
-}
-
-// ── PLAN EXTRACTION + MORNING OPENER ──
-async function extractPlanFromConversation() {
-  // Only extract if there's enough conversation history
-  if (state.history.length < 6) return;
-
-  // Only extract once per day
-  const today = new Date().toDateString();
-  if (state.lastPlanDate === today) return;
-
-  // Check if recent messages contain time-based commitments
-  const recentMessages = state.history.slice(-8).map(m =>
-    typeof m.content === 'string' ? m.content : ''
-  ).join(' ');
-
-  const timePatterns = /\b(\d{1,2}(:\d{2})?\s*(am|pm)|at \d|by \d|around \d|\d+ (min|hour))/i;
-  if (!timePatterns.test(recentMessages)) return;
-
-  try {
-    const extractResponse = await fetch('https://perceptive-surprise-production.up.railway.app/chat', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        
-        
-      },
-      body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
-        max_tokens: 200,
-        system: `Extract the user's daily plan from this conversation. Return ONLY a JSON object like:
-{"tasks": ["walk at 2pm", "eat protein meal at 3pm", "editing 3-5pm"], "summary": "Walk at 2pm, meal at 3pm, editing till 5pm"}
-If no clear plan exists return: {"tasks": [], "summary": ""}
-Return ONLY the JSON, nothing else.`,
-        messages: [{ role: 'user', content: recentMessages }]
-      })
-    });
-    const extractData = await extractResponse.json();
-    const raw = extractData.content[0].text.replace(/```json|```/g, '').trim();
-    const plan = JSON.parse(raw);
-    if (plan.tasks && plan.tasks.length > 0) {
-      state.todayPlan = plan;
-      state.lastPlanDate = today;
-      saveState();
-    }
-  } catch(e) {
-    // Silent fail — plan extraction is background feature
-  }
-}
-
-// ── PATTERN INTELLIGENCE ──
-async function detectPatterns() {
-  // Need enough history to detect patterns
-  if (state.history.length < 10) return;
-  
-  // Only run once per day
-  const today = new Date().toDateString();
-  if (state.lastPatternCheck === today) return;
-  state.lastPatternCheck = today;
-  saveState();
-
-  const recentConvo = state.history.slice(-20)
-    .map(m => typeof m.content === 'string' ? `${m.role}: ${m.content}` : '')
-    .filter(Boolean)
-    .join('\n');
-
-  try {
-    const response = await fetch('https://perceptive-surprise-production.up.railway.app/chat', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        
-        
-      },
-      body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
-        max_tokens: 200,
-        system: `Analyze this conversation for cause-and-effect patterns that lead to bad outcomes. Look for things like: specific events that cause the user to skip workouts, miss commitments, eat badly, or fail goals.
-
-Return ONLY a JSON array like:
-[{"trigger": "casino on Sunday", "outcome": "miss work Monday", "warning": "Last time you went to the casino Sunday you missed your Monday shift. Want to set a leaving time tonight?"}]
-
-If no clear patterns found return: []
-Return ONLY the JSON, nothing else. Max 2 patterns.`,
-        messages: [{ role: 'user', content: recentConvo }]
-      })
-    });
-    const data = await response.json();
-    const raw = data.content[0].text.replace(/\`\`\`json|\`\`\`/g, '').trim();
-    const detected = JSON.parse(raw);
-    
-    if (detected.length > 0) {
-      // Merge with existing patterns, avoid duplicates
-      detected.forEach(p => {
-        const exists = state.patterns.find(ep => 
-          ep.trigger.toLowerCase().includes(p.trigger.toLowerCase().substring(0, 8))
-        );
-        if (!exists) {
-          state.patterns.push({ ...p, count: 1, firstSeen: new Date().toDateString() });
-        } else {
-          exists.count = (exists.count || 1) + 1;
-        }
-      });
-      saveState();
-    }
-  } catch(e) {
-    // Silent fail
-  }
-}
-
-function checkForPatternTrigger(userMessage) {
-  if (!state.patterns || state.patterns.length === 0) return null;
-  
-  const msgLower = userMessage.toLowerCase();
-  for (const pattern of state.patterns) {
-    const triggerWords = pattern.trigger.toLowerCase().split(' ').filter(w => w.length > 3);
-    const matches = triggerWords.filter(w => msgLower.includes(w));
-    if (matches.length >= Math.ceil(triggerWords.length * 0.5)) {
-      return pattern;
-    }
-  }
-  return null;
-}
-
-async function checkMorningOpener() {
-  const now = new Date();
-  const hour = now.getHours();
-  const today = now.toDateString();
-
-  // Morning window: 4am - 12pm (catches early risers like 4:20am starts)
-  if (hour < 4 || hour >= 12) return;
-  // Already opened today
-  if (state.lastOpenedDate === today) return;
-
-  state.lastOpenedDate = today;
-  saveState();
-
-  // If we have a plan from yesterday, open with it
-  if (state.todayPlan && state.todayPlan.summary) {
-    showTyping();
-    await delay(1200);
-    hideTyping();
-    const planLines = state.todayPlan.tasks.slice(0, 3).join(', ');
-    const openers = [
-      `Good morning ${state.userName}. You got ${planLines} on the list today. You ready to execute?`,
-      `Morning ${state.userName}. Today we're hitting ${planLines}. Let's lock it in.`,
-      `Rise up ${state.userName}. ${planLines}. That's today's mission. You with it?`,
-    ];
-    const morningMsg = openers[Math.floor(Math.random() * openers.length)];
-    addMessage('in', morningMsg);
-    state.history.push({ role: 'assistant', content: morningMsg });
-    saveHistory('assistant', morningMsg);
-    saveState();
-  } else {
-    // No plan — ask what's on for today
-    showTyping();
-    await delay(1200);
-    hideTyping();
-    const msgs = [
-      `Good morning ${state.userName}. New day. What are we owning today?`,
-      `Morning ${state.userName}. What's the plan today? Walk me through it.`,
-      `Rise up ${state.userName}. What are we locking in today?`,
-    ];
-    const msg = msgs[Math.floor(Math.random() * msgs.length)];
-    addMessage('in', msg);
-    state.history.push({ role: 'assistant', content: msg });
-    saveHistory('assistant', msg);
-    saveState();
-  }
 }
 
 // ── CLEAN CHASE RESPONSES ──
 function cleanResponse(text) {
   return text
-    .replace(/\s*—\s*/g, '. ')   // em dash with spaces → period space
-    .replace(/—/g, '. ')          // bare em dash → period space
-    .replace(/\*([^*]+)\*/g, '$1') // remove *asterisk* formatting
-    .replace(/\. \./g, '.')        // clean up double periods
+    .replace(/\s*—\s*/g, '. ')
+    .replace(/—/g, '. ')
+    .replace(/\*([^*]+)\*/g, '$1')
+    .replace(/\. \./g, '.')
     .trim();
 }
 
-async function handleOnboardingFreeText(text) {
-  if (!onboardingData.age) {
-    // Age response — store it, show reaction + goals question
-    const age = parseInt(text) || 25;
-    onboardingData.age = age;
-    state.userAge = age;
+// ── PLAN EXTRACTION + MORNING OPENER ──
+async function extractPlanFromConversation() {
+  if (state.history.length < 6) return;
+  const today = new Date().toDateString();
+  if (state.lastPlanDate === today) return;
+  const recentMessages = state.history.slice(-8).map(m => typeof m.content === 'string' ? m.content : '').join(' ');
+  const timePatterns = /\b(\d{1,2}(:\d{2})?\s*(am|pm)|at \d|by \d|around \d|\d+ (min|hour))/i;
+  if (!timePatterns.test(recentMessages)) return;
+  try {
+    const r = await fetch(API_BASE + '/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 200, system: `Extract the user's daily plan. Return ONLY JSON: {"tasks":["..."],"summary":"..."}. If none: {"tasks":[],"summary":""}`, messages: [{ role: 'user', content: recentMessages }] }) });
+    const d = await r.json();
+    const plan = JSON.parse(d.content[0].text.replace(/```json|```/g, '').trim());
+    if (plan.tasks && plan.tasks.length > 0) { state.todayPlan = plan; state.lastPlanDate = today; saveState(); }
+  } catch(e) {}
+}
+
+async function detectPatterns() {
+  if (state.history.length < 10) return;
+  const today = new Date().toDateString();
+  if (state.lastPatternCheck === today) return;
+  state.lastPatternCheck = today; saveState();
+  const convo = state.history.slice(-20).map(m => typeof m.content === 'string' ? `${m.role}: ${m.content}` : '').filter(Boolean).join('\n');
+  try {
+    const r = await fetch(API_BASE + '/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 200, system: `Find cause-effect patterns leading to bad outcomes. Return JSON array: [{"trigger":"...","outcome":"...","warning":"..."}]. If none: []. Max 2.`, messages: [{ role: 'user', content: convo }] }) });
+    const d = await r.json();
+    const detected = JSON.parse(d.content[0].text.replace(/```json|```/g, '').trim());
+    detected.forEach(p => { const exists = state.patterns.find(ep => ep.trigger.toLowerCase().includes(p.trigger.toLowerCase().substring(0,8))); if (!exists) state.patterns.push({...p, count:1, firstSeen: today}); else exists.count = (exists.count||1)+1; });
     saveState();
-
-    showTyping();
-    await delay(600 + Math.random() * 400);
-    hideTyping();
-
-    // Age reaction (step 2)
-    const step2 = onboardingFlow[2];
-    addMessage('in', step2.message(state.userName, text));
-
-    // Follow-up: goals question
-    if (step2.followUp) {
-      showTyping();
-      await delay(500 + Math.random() * 300);
-      hideTyping();
-      addMessage('in', step2.followUp(state.userName));
-    }
-
-    // Show goals choices
-    if (step2.choices) {
-      await delay(300);
-      showChoices(step2.choices, 2);
-    }
-  } else if (!onboardingData.struggle) {
-    onboardingData.struggle = text;
-    showTyping();
-    await delay(1400);
-    hideTyping();
-    await getChaseAcknowledgment(text);
-  } else if (!onboardingData.whyNow) {
-    onboardingData.whyNow = text;
-    showTyping();
-    await delay(1400);
-    hideTyping();
-    await getChaseWhyNowResponse(text);
-  } else if (!onboardingData.confession) {
-    onboardingData.confession = text;
-    await getConfessionResponse(text);
-  }
+  } catch(e) {}
 }
 
-async function getChaseAcknowledgment(struggle) {
-  try {
-    const response = await fetch('https://perceptive-surprise-production.up.railway.app/chat', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        
-        
-      },
-      body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
-        max_tokens: 120,
-        system: `You are Chase, an AI accountability partner texting someone during onboarding. They just told you their biggest struggle.
-
-React like a real friend who actually heard them — reference the SPECIFIC things they mentioned. Don't be generic. If they mentioned steps, reference steps. If they mentioned eating, reference eating. Show them you were actually listening. 1-2 sentences MAX.
-
-Then end with: "What made you decide to do something about it today?"
-
-Sound like a real text. Warm, direct, human. No bullet points. No "As an AI".`,
-        messages: [{ role: 'user', content: struggle }]
-      })
-    });
-    const data = await response.json();
-    const reply = cleanResponse(data.content[0].text);
-    addMessage('in', reply);
-  } catch(e) {
-    addMessage('in', `Yeah I hear you. That's real and it's exactly what we're gonna fix. What made you decide to do something about it today?`);
+function checkForPatternTrigger(msg) {
+  if (!state.patterns || !state.patterns.length) return null;
+  const lower = msg.toLowerCase();
+  for (const p of state.patterns) {
+    const words = p.trigger.toLowerCase().split(' ').filter(w => w.length > 3);
+    if (words.filter(w => lower.includes(w)).length >= Math.ceil(words.length * 0.5)) return p;
   }
+  return null;
 }
 
-async function getChaseWhyNowResponse(whyNow) {
-  // Step 1: Chase reacts to their "why now" — just the reaction, no follow-up question
-  try {
-    const struggle = onboardingData.struggle || '';
-    const response = await fetch('https://perceptive-surprise-production.up.railway.app/chat', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
-        max_tokens: 80,
-        system: `You are Chase, an AI accountability partner texting someone during onboarding. 
-
-They just told you WHY they decided to make a change today. Their main struggle is: "${struggle}"
-
-React to their "why" genuinely and specifically. Like a real friend who gets it. 1-2 sentences MAX. Reference what they actually said. Do NOT ask any follow-up questions. Just acknowledge their reason with real energy. Use an emoji naturally.
-
-NEVER use em dashes. Sound like a text not an essay.`,
-        messages: [{ role: 'user', content: whyNow }]
-      })
-    });
-    const data = await response.json();
-    const reply = cleanResponse(data.content[0].text);
-    addMessage('in', reply);
-  } catch(e) {
-    addMessage('in', `That's real 💯 That reason right there is enough to start.`);
+async function checkMorningOpener() {
+  const now = new Date(), hour = now.getHours(), today = now.toDateString();
+  if (hour < 4 || hour >= 12) return;
+  if (state.lastOpenedDate === today) return;
+  state.lastOpenedDate = today; saveState();
+  showTyping(); await delay(1200); hideTyping();
+  if (state.todayPlan && state.todayPlan.summary) {
+    const tasks = state.todayPlan.tasks.slice(0,3).join(', ');
+    const msg = `morning ${state.userName}. you got ${tasks} today. ready to execute?`;
+    addMessage('in', msg); state.history.push({role:'assistant',content:msg}); saveHistory('assistant',msg);
+  } else {
+    const msgs = [`morning ${state.userName}. new day. what are we locking in?`, `rise up ${state.userName}. what's the plan today?`];
+    const msg = msgs[Math.floor(Math.random()*msgs.length)];
+    addMessage('in', msg); state.history.push({role:'assistant',content:msg}); saveHistory('assistant',msg);
   }
-
-  // Step 2: Pause, then show the mode question as SEPARATE bubbles
-  await delay(1200);
-  showTyping();
-  await delay(800);
-  hideTyping();
-  addMessage('in', `last thing. how do you want me to hold you down?`);
-  
-  showTyping();
-  await delay(600);
-  hideTyping();
-  addMessage('in', `you want me locked in on you, or you want to cruise on your own terms?`);
-
-  // Step 3: Buttons appear AFTER the question lands
-  await delay(400);
-  showChoices(['🔒 Locked In — don\'t let me slide', '😌 Chill. I got it on my own terms'], 5);
+  saveState();
 }
 
 async function getChaseResponse(userText, imageBase64 = null) {
