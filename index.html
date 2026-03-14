@@ -890,27 +890,29 @@ function getOnboardingSystemPrompt() {
 
   return `You are Chase, meeting ${state.userName} for the first time through text. This is onboarding.
 
-YOUR VIBE: You're meeting someone new at a party or a barbecue. You're naturally curious, funny, and real. You're NOT filling out a form. You're having a genuine conversation and getting to know them.
+YOUR VIBE: You just met someone at a kickback. You're naturally curious, a little funny, and very real. NOT a therapist. NOT an interviewer. You're just vibing and getting to know them. Think about how Tomo AI texts — that level of casual.
 
-RULES — READ THESE CAREFULLY:
-- Send SHORT messages. One thought per message. Separate thoughts with \n so each becomes its own text bubble.
-- Example: "okay respect 😤\nso what are you working on? like what areas of your life need some leveling up?"
-- NEVER combine a reaction AND a question in the same line. React first (one line). Then ask (next line).
-- Ask ONE question at a time. Never two questions in one message.
-- Use their exact words back to them. If they said "low carb high protein" say "low carb high protein" not "your diet goals."
-- React to EVERYTHING they say before asking the next thing. "okay that makes sense" or "yo same" or "ngl that's real"
-- Keep it lowercase. Messy grammar is fine. This is texting not an essay.
-- Use emojis sparingly. 1-2 per response max. Sometimes zero.
-- NEVER use em dashes (—). Use periods or line breaks.
-- NEVER say "As an AI" or anything that breaks character.
-- Keep total response under 3 short lines.
+RULES — NON-NEGOTIABLE:
+- One thought per line. Separate with \\n so each becomes its own text bubble.
+- NEVER put a reaction and a question on the same line.
+- Good: "nah fr that's tough\\nwhat's been making it hard?"
+- Bad: "that's tough, what's been making it hard?"
+- Ask ONE question max per response. If you react, you can follow with ONE question on a new line. That's it.
+- Use THEIR words back at them. They said "lazy" you say "lazy" not "lacking motivation."
+- React genuinely BEFORE moving on. "lmao", "okay bet", "nah that makes sense", "yo same", "sheesh"
+- Keep it lowercase. Drop grammar on purpose sometimes. "you already know" not "You already know."
+- Emojis: 0-2 per response. Don't force them. 
+- NEVER use em dashes (—). NEVER say "As an AI." NEVER use bullet points.
+- Max 3 short lines total. If you're writing more you're writing too much.
+- Be genuinely curious. Ask follow-ups that show you were listening.
+- Don't rush to the next topic. If they say something interesting, dig into it for a sec.
 ${collectedStr}
 ${missingStr}
 
-${missing.length === 0 ? 'You have all the info you need. Wrap up the getting-to-know-you phase. Tell them you got them and transition to asking how they want to be held accountable — locked in (hard accountability) or chill (on their terms). Frame it naturally like: "last thing. you want me locked in on you or you wanna cruise on your own terms?"' : ''}
+${missing.length === 0 ? 'You have all the info. Wrap up naturally. Summarize what you learned about them in one line, then transition: "last thing. you want me locked in on you or you wanna cruise on your own terms?"' : ''}
 
-PERSONALITY CALIBRATION:
-${state.userAge ? (state.userAge < 22 ? 'They\'re young. Gen Z energy. "fr", "ngl", "lowkey", "no cap". Keep it light.' : state.userAge < 30 ? 'Mid-to-late 20s. Mix casual and real. "fr", "bet", "ngl" are fine.' : 'They\'re 30+. Keep it real and direct. Casual but not trying too hard with slang.') : 'Age unknown yet. Keep it neutral-casual.'}`;
+PERSONALITY:
+${state.userAge ? (state.userAge < 22 ? 'They\'re young. Full Gen Z. "fr", "ngl", "lowkey", "no cap", "bet", "valid". Be playful.' : state.userAge < 30 ? 'Mid-to-late 20s. Casual + real. "fr", "bet", "ngl" natural. Don\'t try too hard.' : 'They\'re 30+. Real and direct. Still casual. "bet", "fr" fine but don\'t overdo slang.') : 'Age unknown. Stay neutral-casual until you know.'}`;
 }
 
 async function beginOnboarding() {
@@ -1034,34 +1036,47 @@ function extractOnboardingInfo(text) {
     }
   }
 
-  // Extract goals from choice buttons or keywords
+  // Extract goals — broad keyword matching
   if (!onboardingData.goals) {
-    if (lower.includes('eating') || lower.includes('diet') || lower.includes('food')) {
-      onboardingData.goals = 'eating & diet';
-      state.goals = ['eating'];
-    } else if (lower.includes('fitness') || lower.includes('workout') || lower.includes('gym')) {
-      onboardingData.goals = 'fitness & workouts';
-      state.goals = ['fitness'];
-    } else if (lower.includes('work') || lower.includes('productivity') || lower.includes('productive')) {
-      onboardingData.goals = 'work & productivity';
-      state.goals = ['work'];
+    const goalKeywords = {
+      eating: ['eating', 'diet', 'food', 'meal', 'nutrition', 'carb', 'protein', 'calories', 'weight', 'cook', 'snack', 'healthy eating'],
+      fitness: ['fitness', 'workout', 'gym', 'exercise', 'run', 'lift', 'steps', 'active', 'lazy', 'cardio', 'muscle', 'training', 'work out'],
+      work: ['work', 'productivity', 'productive', 'focus', 'distract', 'procrastinat', 'career', 'job', 'hustle', 'grind', 'business', 'money', 'side hustle']
+    };
+    
+    const matched = [];
+    for (const [category, keywords] of Object.entries(goalKeywords)) {
+      if (keywords.some(k => lower.includes(k))) matched.push(category);
+    }
+    
+    if (matched.length > 0) {
+      onboardingData.goals = matched.join(', ');
+      state.goals = matched;
     } else if (lower.includes('all') || lower.includes('everything')) {
       onboardingData.goals = 'all of the above';
       state.goals = ['eating', 'fitness', 'work'];
     }
   }
 
-  // Extract struggle (if goals are set and this is a freetext response about struggle)
-  if (onboardingData.goals && !onboardingData.struggle && !onboardingData.age_just_set) {
-    // If it's not a number and not a choice button text, it's probably the struggle
-    if (!text.match(/^\d+$/) && !text.includes('Coffee') && !text.includes('Energy') && !text.includes('Water') && !text.includes('Both') && !text.includes('Eating') && !text.includes('Fitness') && !text.includes('Work') && !text.includes('All of') && text.length > 5) {
+  // Extract struggle — look for phrases indicating a problem
+  if (onboardingData.goals && !onboardingData.struggle) {
+    const struggleIndicators = ['hard', 'struggle', 'can\'t', 'cant', 'keep', 'slip', 'fail', 'lazy', 'consistent', 'stick', 'fall off', 'quit', 'give up', 'tempt', 'cheat', 'skip', 'procrastinat', 'distract', 'motivated'];
+    const isStruggle = struggleIndicators.some(s => lower.includes(s));
+    const isNotButton = !['coffee', 'energy', 'water', 'both', 'eating', 'fitness', 'work', 'all of'].some(b => lower.includes(b));
+    const isNotAge = !text.match(/^\d{1,2}$/);
+    
+    if (isStruggle && isNotButton && isNotAge && text.length > 8) {
       onboardingData.struggle = text;
     }
   }
 
-  // Extract whyNow (if struggle is set)
+  // Extract whyNow — only after struggle is set, look for motivation language
   if (onboardingData.struggle && !onboardingData.whyNow && !text.includes('Locked') && !text.includes('Chill')) {
-    if (text.length > 3 && text !== onboardingData.struggle) {
+    const whyIndicators = ['tired', 'ready', 'change', 'enough', 'sick of', 'fed up', 'want to', 'wanna', 'need to', 'gotta', 'decided', 'time to', 'done with', 'over it'];
+    const isWhy = whyIndicators.some(w => lower.includes(w));
+    const isNotPrevious = text !== onboardingData.struggle;
+    
+    if (isWhy && isNotPrevious && text.length > 5) {
       onboardingData.whyNow = text;
     }
   }
@@ -1079,6 +1094,8 @@ function extractOnboardingInfo(text) {
 }
 
 // Override sendMessage during onboarding to use the conversation engine
+let waitingForConfession = false;
+
 async function handleOnboardingFreeText(text) {
   // Check if user just selected a mode
   if (text.includes('Locked') || text.includes('Chill')) {
@@ -1094,8 +1111,8 @@ async function handleOnboardingFreeText(text) {
 
     try {
       const modePrompt = state.mode === 'locked'
-        ? `The user chose LOCKED IN. React with intensity. You heard them. You're not playing. 1 short line. Use 🔒.`
-        : `The user chose CHILL. Respect it. Warm and supportive. 1 short line. Use 😎.`;
+        ? `The user chose LOCKED IN. React with intensity. 1 short line. Use 🔒.`
+        : `The user chose CHILL. Respect it. Warm. 1 short line. Use 😎.`;
 
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 8000);
@@ -1106,7 +1123,7 @@ async function handleOnboardingFreeText(text) {
         body: JSON.stringify({
           model: 'claude-haiku-4-5-20251001',
           max_tokens: 60,
-          system: `You are Chase. ${modePrompt} NEVER use em dashes. Lowercase. One short text message only.`,
+          system: `You are Chase. ${modePrompt} NEVER use em dashes. Lowercase. One short text only.`,
           messages: [{ role: 'user', content: text }]
         })
       });
@@ -1123,22 +1140,74 @@ async function handleOnboardingFreeText(text) {
       addMessage('in', state.mode === 'locked' ? `say less 🔒` : `got you 😎`);
     }
 
-    // Confession question — multi-bubble
+    // Now ask the confession question — contextual, based on what we learned
     await delay(800);
     showTyping();
-    await delay(900);
-    hideTyping();
-    addMessage('in', `real talk ${state.userName}. what's the one thing you keep doing that you KNOW is holding you back?`);
-    
-    showTyping();
-    await delay(600);
-    hideTyping();
-    addMessage('in', `be honest with me`);
+
+    try {
+      const confessionPrompt = `You are Chase. You just finished getting to know ${state.userName}. Here's what you know about them:
+- Goals: ${onboardingData.goals || 'general self-improvement'}
+- Struggle: ${onboardingData.struggle || 'staying consistent'}
+- Why now: ${onboardingData.whyNow || 'ready for change'}
+
+Now ask them about their self-sabotage habit. Reference what they already told you. Make it feel like a natural follow-up, not a new topic. Something like "you mentioned [their thing]. is there a specific habit that keeps pulling you back?" 
+
+2 short lines max separated by \\n. First line is a reaction/transition. Second line is the question. Lowercase. No em dashes.`;
+
+      const controller2 = new AbortController();
+      const timeout2 = setTimeout(() => controller2.abort(), 8000);
+      const response2 = await fetch(API_BASE + '/chat', {
+        method: 'POST',
+        signal: controller2.signal,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'claude-haiku-4-5-20251001',
+          max_tokens: 100,
+          system: confessionPrompt,
+          messages: onboardingHistory.slice(-6)
+        })
+      });
+      clearTimeout(timeout2);
+      const data2 = await response2.json();
+      await delay(1200);
+      hideTyping();
+      if (data2.content && data2.content[0]) {
+        await addMultiBubble(cleanResponse(data2.content[0].text));
+      } else throw new Error();
+    } catch(e) {
+      await delay(1200);
+      hideTyping();
+      addMessage('in', `real quick tho. what's the one habit you know keeps getting in the way?`);
+      showTyping();
+      await delay(500);
+      hideTyping();
+      addMessage('in', `be real with me`);
+    }
+
+    waitingForConfession = true;
     return;
   }
 
-  // Check if this is the confession (mode is set, confession not yet)
-  if (onboardingData.mode && !onboardingData.confession) {
+  // Check if this is the confession response
+  if (waitingForConfession) {
+    // Require a substantive answer — not just "yes", "no", "bet", single words
+    const isSubstantive = text.length > 8 && !text.match(/^(yes|no|yeah|yep|nah|bet|ok|okay|sure|yup|nope|true|facts)$/i);
+    
+    if (!isSubstantive) {
+      // They gave a short/vague answer — Chase nudges for more
+      onboardingHistory.push({ role: 'user', content: text });
+      showTyping();
+      await delay(800);
+      hideTyping();
+      addMessage('in', `nah I need more than that lol`);
+      showTyping();
+      await delay(500);
+      hideTyping();
+      addMessage('in', `what's the actual habit or pattern that keeps tripping you up?`);
+      return;
+    }
+
+    waitingForConfession = false;
     onboardingData.confession = text;
     await getConfessionResponse(text);
     return;
