@@ -1181,15 +1181,21 @@ function extractOnboardingInfo(text) {
     }
   }
 
-  // Extract struggle — look for phrases indicating a problem
+  // Extract struggle — capture any substantive response after goals are set
+  // Don't rely on keywords — if Chase asked about struggle, user's response IS the struggle
   if (onboardingData.goals && !onboardingData.struggle) {
-    const struggleIndicators = ['hard', 'struggle', 'can\'t', 'cant', 'keep', 'slip', 'fail', 'lazy', 'consistent', 'stick', 'fall off', 'quit', 'give up', 'tempt', 'cheat', 'skip', 'procrastinat', 'distract', 'motivated'];
-    const isStruggle = struggleIndicators.some(s => lower.includes(s));
-    const isNotButton = !['coffee', 'energy', 'water', 'both', 'eating', 'fitness', 'work', 'all of'].some(b => lower.includes(b));
-    const isNotAge = !text.match(/^\d{1,2}$/);
+    const isNotButton = !['coffee', 'energy', 'water', 'both', '🔒', '😌', 'locked', 'chill'].some(b => lower.includes(b));
+    const isNotAge = !text.match(/^\d{1,2}$/) && !(text.length <= 3);
+    const isNotCity = !text.match(/^(oc|la|nyc|sf|atl|chi|dc|miami|dallas|houston|austin)$/i);
+    const isNotGoalChoice = !['eating', 'fitness', 'work', 'all of', 'eating clean', 'lose weight'].some(b => lower === b);
+    const isSubstantive = text.length > 6;
     
-    if (isStruggle && isNotButton && isNotAge && text.length > 8) {
-      onboardingData.struggle = text;
+    if (isNotButton && isNotAge && isNotCity && isNotGoalChoice && isSubstantive) {
+      // Only set struggle if we're past the goals/city/age phase
+      // Check that we have at least age + goals + city before accepting struggle
+      if (onboardingData.age && onboardingData.goals) {
+        onboardingData.struggle = text;
+      }
     }
   }
 
