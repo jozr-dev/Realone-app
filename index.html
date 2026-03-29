@@ -1093,7 +1093,7 @@ async function handleOnboardingMessage(text) {
     await addMultiBubble(reply);
 
     // Check if Chase just asked about mode (look for "locked in" and "own terms" in the response)
-    if (reply.toLowerCase().includes('locked in') && reply.toLowerCase().includes('own terms') && onboardingData.whyNow) {
+    if (reply.toLowerCase().includes('locked in') && reply.toLowerCase().includes('own terms')) {
       await delay(400);
       showOnboardingChoices(['🔒 Locked In — don\'t let me slide', '😌 Chill. I got it on my own terms']);
       return;
@@ -1162,11 +1162,12 @@ function extractOnboardingInfo(text) {
 
   // Extract whyNow — only after struggle is set, look for motivation language
   if (onboardingData.struggle && !onboardingData.whyNow && !text.includes('Locked') && !text.includes('Chill')) {
-    const whyIndicators = ['tired', 'ready', 'change', 'enough', 'sick of', 'fed up', 'want to', 'wanna', 'need to', 'gotta', 'decided', 'time to', 'done with', 'over it'];
+    const whyIndicators = ['tired of', 'ready to', 'sick of', 'fed up', 'wanna change', 'need a change', 'gotta change', 'decided to', 'time to change', 'done with', 'over it', 'enough is enough', 'wake up call', 'hit different', 'turning point'];
     const isWhy = whyIndicators.some(w => lower.includes(w));
     const isNotPrevious = text !== onboardingData.struggle;
+    const isSubstantive = text.length > 12;
     
-    if (isWhy && isNotPrevious && text.length > 5) {
+    if (isWhy && isNotPrevious && isSubstantive) {
       onboardingData.whyNow = text;
     }
   }
@@ -2002,7 +2003,7 @@ let deferredInstallPrompt = null;
 // Register service worker
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').then(reg => {
+    navigator.serviceWorker.register('./sw.js').then(reg => {
       swRegistration = reg;
       console.log('SW registered');
     }).catch(err => console.log('SW failed:', err));
