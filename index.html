@@ -630,6 +630,9 @@ let state = {
   confessions: [],
   frictionTips: [],
   lastPatternCheck: null,
+  lastActiveAt: null,     // ISO timestamp — updated on every user message
+  nudgeCount: 0,          // resets to 0 each day
+  lastNudgeDate: null,    // date string — tracks daily nudge resets
 };
 
 // ── CONFIG ──
@@ -1484,6 +1487,13 @@ async function sendMessage() {
     await handleOnboardingFreeText(text);
     return;
   }
+
+  // Track activity for quiet nudge detection (only after onboarding)
+  state.lastActiveAt = new Date().toISOString();
+  state.nudgeCount = 0;
+  saveState();
+  scheduleQuietNudge();
+
   await getChaseResponse(text);
 }
 
@@ -2005,46 +2015,101 @@ window.addEventListener('beforeinstallprompt', e => {
   deferredInstallPrompt = e;
 });
 
+// ── TIMEZONE HELPERS ──
+
+function getMillisecondsUntil(hour, minute, timezone) {
+  const now = new Date();
+
+  if (!timezone) {
+    const target = new Date();
+    target.setHours(hour, minute, 0, 0);
+    if (now >= target) target.setDate(target.getDate() + 1);
+    return target - now;
+  }
+
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: timezone,
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+    hour12: false
+  }).formatToParts(now);
+
+  const get = type => parseInt(parts.find(p => p.type === type).value, 10);
+  const tzHour = get('hour'), tzMinute = get('minute'), tzSecond = get('second');
+
+  const tzSecondsNow = tzHour * 3600 + tzMinute * 60 + tzSecond;
+  const targetSeconds = hour * 3600 + minute * 60;
+  let diffSeconds = targetSeconds - tzSecondsNow;
+  if (diffSeconds <= 0) diffSeconds += 86400;
+  return diffSeconds * 1000;
+}
+
+function scheduleQuietNudge() {
+  if (!swRegistration || !swRegistration.active) return;
+
+  const today = new Date().toDateString();
+
+  if (state.lastNudgeDate !== today) {
+    state.nudgeCount = 0;
+    state.lastNudgeDate = today;
+    saveState();
+  }
+
+  if (state.nudgeCount >= 2) return;
+  if (!state.lastActiveAt) return;
+
+  const msSinceActive = Date.now() - new Date(state.lastActiveAt).getTime();
+  const fourHours = 4 * 60 * 60 * 1000;
+  const delay = msSinceActive >= fourHours ? 5 * 60 * 1000 : fourHours - msSinceActive;
+  _sendQuietNudge(delay);
+}
+
+function _sendQuietNudge(delay) {
+  const name = state.userName || 'you';
+  const nudgeMessages = [
+    `yo ${name} you went quiet. everything good?`,
+    `${name}. don't ghost me now. we had a plan`,
+    `haven't heard from you in a min. you good?`,
+    `ayo ${name}. check in real quick`,
+  ];
+
+  swRegistration.active.postMessage({
+    type: 'SCHEDULE_NOTIFICATION',
+    delay,
+    title: 'Real One',
+    body: nudgeMessages[Math.floor(Math.random() * nudgeMessages.length)],
+    tag: 'quiet-nudge'
+  });
+
+  state.nudgeCount += 1;
+  state.lastNudgeDate = new Date().toDateString();
+  saveState();
+}
+
 function scheduleNotifications() {
   state.notificationsEnabled = true;
   saveState();
 
   if (!swRegistration || !swRegistration.active) return;
 
-  const now = new Date();
+  swRegistration.active.postMessage({ type: 'CANCEL_NOTIFICATIONS' });
 
-  // Morning 7am
-  const next7am = new Date();
-  next7am.setHours(7, 0, 0, 0);
-  if (now >= next7am) next7am.setDate(next7am.getDate() + 1);
-
+  const name = state.userName || 'you';
   const morningMessages = [
-    `Good morning ${state.userName}. What are we owning today?`,
-    `Rise up ${state.userName}. Chase is ready. What's the plan?`,
-    `New day ${state.userName}. Let's get it. What are we locking in?`,
-    `Morning ${state.userName}. No excuses today. What's on the list?`,
+    `morning ${name}. new day. what are we locking in?`,
+    `rise up ${name}. Chase is ready. what's the plan?`,
+    `7am ${name}. you up? let's get it`,
   ];
 
   swRegistration.active.postMessage({
     type: 'SCHEDULE_NOTIFICATION',
-    delay: next7am - now,
+    delay: getMillisecondsUntil(7, 0, state.userTimezone),
     title: 'Real One',
     body: morningMessages[Math.floor(Math.random() * morningMessages.length)],
     tag: 'morning-checkin'
   });
 
-  // Evening 8pm
-  const next8pm = new Date();
-  next8pm.setHours(20, 0, 0, 0);
-  if (now >= next8pm) next8pm.setDate(next8pm.getDate() + 1);
-
-  swRegistration.active.postMessage({
-    type: 'SCHEDULE_NOTIFICATION',
-    delay: next8pm - now,
-    title: 'Real One',
-    body: `Hey ${state.userName}. Haven't heard from you today. Everything good?`,
-    tag: 'evening-nudge'
-  });
+  scheduleQuietNudge();
 }
 
 function showInstallBanner() {
