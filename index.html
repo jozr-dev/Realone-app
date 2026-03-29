@@ -612,6 +612,8 @@ let state = {
   userName: '',
   chaseName: 'Chase',
   userAge: null,
+  userTimezone: null,   // e.g. 'America/Los_Angeles' — set during onboarding
+  userCity: null,       // e.g. 'LA' — Chase uses this in proactive messages
   mode: 'locked', // locked | chill
   streak: 0,
   xp: 0,
@@ -867,12 +869,91 @@ function launchApp() {
 let onboardingData = {};
 let onboardingHistory = []; // separate conversation history for onboarding
 
+// Onboarding data shape:
+// { age, goals, struggle, whyNow, mode, confession, timezone, city }
+
+function extractTimezone(text) {
+  if (!text) return null;
+  const t = text.toLowerCase().trim();
+
+  const cityMap = [
+    // US — Pacific
+    [/\b(la|los angeles|l\.a\.|socal|so cal|southern cal|san diego|sd|vegas|las vegas|seattle|portland|sacramento|sf|san francisco|bay area|silicon valley|fresno|reno)\b/, 'America/Los_Angeles', 'LA'],
+    // US — Mountain
+    [/\b(denver|colorado|co|salt lake|slc|utah|albuquerque|boise|idaho|montana|wyoming|az|phoenix|arizona)\b/, 'America/Denver', 'Denver'],
+    // US — Central
+    [/\b(chicago|chi|dallas|houston|austin|tx|texas|san antonio|memphis|nashville|new orleans|minneapolis|kansas city|st louis|omaha|milwaukee)\b/, 'America/Chicago', 'Chicago'],
+    // US — Eastern
+    [/\b(nyc|new york|ny|brooklyn|queens|bronx|manhattan|jersey|nj|miami|florida|fl|atlanta|ga|charlotte|nc|dc|washington|virginia|va|boston|ma|philly|philadelphia|pa|detroit|cleveland|ohio|oh|pittsburgh|baltimore|md|raleigh|durham)\b/, 'America/New_York', 'NYC'],
+    // US — Alaska
+    [/\b(alaska|anchorage|ak)\b/, 'America/Anchorage', 'Anchorage'],
+    // US — Hawaii
+    [/\b(hawaii|honolulu|hi)\b/, 'Pacific/Honolulu', 'Honolulu'],
+    // Canada
+    [/\b(toronto|ontario|montreal|ottawa|quebec|qc|halifax|nova scotia)\b/, 'America/Toronto', 'Toronto'],
+    [/\b(vancouver|bc|british columbia|calgary|alberta|edmonton)\b/, 'America/Vancouver', 'Vancouver'],
+    [/\b(winnipeg|manitoba|saskatchewan|regina|saskatoon)\b/, 'America/Winnipeg', 'Winnipeg'],
+    // UK / Ireland
+    [/\b(london|uk|england|britain|manchester|birmingham|glasgow|edinburgh|scotland|wales|cardiff|ireland|dublin)\b/, 'Europe/London', 'London'],
+    // Western Europe
+    [/\b(paris|france|french)\b/, 'Europe/Paris', 'Paris'],
+    [/\b(berlin|germany|munich|hamburg|frankfurt|cologne|german)\b/, 'Europe/Berlin', 'Berlin'],
+    [/\b(amsterdam|netherlands|dutch|holland)\b/, 'Europe/Amsterdam', 'Amsterdam'],
+    [/\b(madrid|spain|barcelona|spanish)\b/, 'Europe/Madrid', 'Madrid'],
+    [/\b(rome|italy|milan|italian)\b/, 'Europe/Rome', 'Rome'],
+    [/\b(zurich|switzerland|swiss|geneva)\b/, 'Europe/Zurich', 'Zurich'],
+    [/\b(lisbon|portugal|portuguese)\b/, 'Europe/Lisbon', 'Lisbon'],
+    [/\b(brussels|belgium|belgian)\b/, 'Europe/Brussels', 'Brussels'],
+    [/\b(stockholm|sweden|swedish|oslo|norway|norwegian|copenhagen|denmark|danish|helsinki|finland|finnish)\b/, 'Europe/Stockholm', 'Stockholm'],
+    // Eastern Europe / Middle East
+    [/\b(dubai|uae|abu dhabi)\b/, 'Asia/Dubai', 'Dubai'],
+    [/\b(istanbul|turkey|turkish|ankara)\b/, 'Europe/Istanbul', 'Istanbul'],
+    [/\b(athens|greece|greek)\b/, 'Europe/Athens', 'Athens'],
+    [/\b(warsaw|poland|polish|prague|czech|budapest|hungary|hungarian|bucharest|romania|romanian)\b/, 'Europe/Warsaw', 'Warsaw'],
+    // Asia
+    [/\b(tokyo|japan|japanese|osaka|kyoto)\b/, 'Asia/Tokyo', 'Tokyo'],
+    [/\b(seoul|korea|korean)\b/, 'Asia/Seoul', 'Seoul'],
+    [/\b(beijing|shanghai|china|chinese|shenzhen|guangzhou|chengdu|hong kong|hk)\b/, 'Asia/Shanghai', 'Shanghai'],
+    [/\b(singapore|sg)\b/, 'Asia/Singapore', 'Singapore'],
+    [/\b(mumbai|delhi|india|indian|bangalore|bengaluru|hyderabad|chennai|kolkata)\b/, 'Asia/Kolkata', 'Mumbai'],
+    [/\b(bangkok|thailand|thai)\b/, 'Asia/Bangkok', 'Bangkok'],
+    [/\b(jakarta|indonesia|indonesian|bali)\b/, 'Asia/Jakarta', 'Jakarta'],
+    [/\b(manila|philippines|filipino)\b/, 'Asia/Manila', 'Manila'],
+    [/\b(kuala lumpur|malaysia|malaysian)\b/, 'Asia/Kuala_Lumpur', 'KL'],
+    // Australia / Pacific
+    [/\b(sydney|melbourne|brisbane|australia|australian|perth|adelaide|canberra)\b/, 'Australia/Sydney', 'Sydney'],
+    [/\b(auckland|new zealand|nz|wellington|christchurch)\b/, 'Pacific/Auckland', 'Auckland'],
+    // Latin America
+    [/\b(mexico city|cdmx|mexico|mexican|guadalajara|monterrey)\b/, 'America/Mexico_City', 'Mexico City'],
+    [/\b(sao paulo|brazil|rio|brasilia|brazilian)\b/, 'America/Sao_Paulo', 'São Paulo'],
+    [/\b(buenos aires|argentina|argentinian)\b/, 'America/Argentina/Buenos_Aires', 'Buenos Aires'],
+    [/\b(bogota|colombia|colombian|medellin)\b/, 'America/Bogota', 'Bogotá'],
+    [/\b(lima|peru|peruvian)\b/, 'America/Lima', 'Lima'],
+    [/\b(santiago|chile|chilean)\b/, 'America/Santiago', 'Santiago'],
+    // Africa
+    [/\b(lagos|nigeria|nigerian|abuja)\b/, 'Africa/Lagos', 'Lagos'],
+    [/\b(nairobi|kenya|kenyan)\b/, 'Africa/Nairobi', 'Nairobi'],
+    [/\b(johannesburg|south africa|cape town|durban)\b/, 'Africa/Johannesburg', 'Johannesburg'],
+    [/\b(cairo|egypt|egyptian)\b/, 'Africa/Cairo', 'Cairo'],
+  ];
+
+  for (const [pattern, timezone, city] of cityMap) {
+    if (pattern.test(t)) {
+      return { timezone, city };
+    }
+  }
+  return null; // not recognized — Chase will follow up naturally
+}
+
 function getOnboardingSystemPrompt() {
   const collected = [];
   const missing = [];
   
   if (onboardingData.age) collected.push(`Age: ${onboardingData.age}`);
   else missing.push('age');
+
+  if (onboardingData.city && onboardingData.timezone) collected.push(`Location: ${onboardingData.city} (${onboardingData.timezone})`);
+  else missing.push('location/city — ask "where you based?" or "what city you in?" casually after age');
   
   if (onboardingData.goals) collected.push(`Goals: ${onboardingData.goals}`);
   else missing.push('what areas of life they want to work on (eating/fitness/work/all)');
@@ -908,6 +989,12 @@ RULES — NON-NEGOTIABLE:
 - Don't rush to the next topic. If they say something interesting, dig into it for a sec.
 ${collectedStr}
 ${missingStr}
+
+LOCATION COLLECTION RULES (when location/city is still missing):
+- Ask after you have their age. Say something like "where you based?" or "what city you in?" — casual, NOT "please provide your location."
+- If their answer is vague (e.g. "online", "everywhere"), ask once more: "ok but where you mostly at?"
+- If still unclear after 2 tries, drop it and move on — don't make it weird.
+- DO NOT ask for a timezone string. You're just asking where they live like a normal person.
 
 ${missing.length === 0 ? 'You have all the info. Wrap up naturally. Summarize what you learned about them in one line, then transition: "last thing. you want me locked in on you or you wanna cruise on your own terms?"' : ''}
 
@@ -1089,6 +1176,17 @@ function extractOnboardingInfo(text) {
     onboardingData.mode = 'chill';
     state.mode = 'chill';
   }
+
+  // Timezone extraction — runs on every user message until we have it
+  if (!onboardingData.timezone) {
+    const tzResult = extractTimezone(text);
+    if (tzResult) {
+      onboardingData.timezone = tzResult.timezone;
+      onboardingData.city = tzResult.city;
+      state.userTimezone = tzResult.timezone;
+      state.userCity = tzResult.city;
+    }
+  }
   
   saveState();
 }
@@ -1266,6 +1364,33 @@ async function finishOnboarding() {
   state.streak = 1;
   state.history = [];
   addXP(50);
+
+  // Silent browser timezone fallback — only fires if Chase couldn't extract it during conversation
+  if (!state.userTimezone) {
+    try {
+      const browserTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      if (browserTz) {
+        state.userTimezone = browserTz;
+        onboardingData.timezone = browserTz;
+        const tzCityMap = {
+          'America/Los_Angeles': 'LA', 'America/Denver': 'Denver',
+          'America/Chicago': 'Chicago', 'America/New_York': 'NYC',
+          'America/Anchorage': 'Anchorage', 'Pacific/Honolulu': 'Honolulu',
+          'America/Toronto': 'Toronto', 'America/Vancouver': 'Vancouver',
+          'Europe/London': 'London', 'Europe/Paris': 'Paris',
+          'Europe/Berlin': 'Berlin', 'Asia/Tokyo': 'Tokyo',
+          'Asia/Shanghai': 'Shanghai', 'Asia/Kolkata': 'Mumbai',
+          'Australia/Sydney': 'Sydney', 'Pacific/Auckland': 'Auckland',
+        };
+        if (tzCityMap[browserTz]) {
+          state.userCity = tzCityMap[browserTz];
+          onboardingData.city = tzCityMap[browserTz];
+        }
+      }
+    } catch (e) {
+      // Intl not available — timezone stays null, no big deal
+    }
+  }
   saveState();
   updateStreakBar();
   
