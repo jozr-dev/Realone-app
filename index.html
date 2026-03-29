@@ -1281,7 +1281,7 @@ async function handleOnboardingFreeText(text) {
       addMessage('in', state.mode === 'locked' ? `say less 🔒` : `got you 😎`);
     }
 
-    // Now ask the confession question — contextual, based on what we learned
+    // Now ask the confession question — always fires, API enhances it
     await delay(800);
     showTyping();
 
@@ -1289,23 +1289,20 @@ async function handleOnboardingFreeText(text) {
       const confessionPrompt = `You are Chase. You just finished getting to know ${state.userName}. Here's what you know about them:
 - Goals: ${onboardingData.goals || 'general self-improvement'}
 - Struggle: ${onboardingData.struggle || 'staying consistent'}
-- Why now: ${onboardingData.whyNow || 'ready for change'}
 
-Now ask them about their self-sabotage habit. Reference what they already told you. Make it feel like a natural follow-up, not a new topic. Something like "you mentioned [their thing]. is there a specific habit that keeps pulling you back?" 
-
-2 short lines max separated by \\n. First line is a reaction/transition. Second line is the question. Lowercase. No em dashes.`;
+Ask ONE question about their self-sabotage habit — the specific behavior that keeps pulling them back. Reference what they told you. 2 short lines max separated by \\n. First line reaction. Second line is the question ONLY. Do NOT give advice. Do NOT start coaching. Just ask the question. Lowercase. No em dashes.`;
 
       const controller2 = new AbortController();
-      const timeout2 = setTimeout(() => controller2.abort(), 8000);
+      const timeout2 = setTimeout(() => controller2.abort(), 6000);
       const response2 = await fetch(API_BASE + '/chat', {
         method: 'POST',
         signal: controller2.signal,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           model: 'claude-haiku-4-5-20251001',
-          max_tokens: 100,
+          max_tokens: 80,
           system: confessionPrompt,
-          messages: onboardingHistory.slice(-6)
+          messages: [{ role: 'user', content: text }]
         })
       });
       clearTimeout(timeout2);
@@ -1313,16 +1310,20 @@ Now ask them about their self-sabotage habit. Reference what they already told y
       await delay(1200);
       hideTyping();
       if (data2.content && data2.content[0]) {
-        await addMultiBubble(cleanResponse(data2.content[0].text));
+        const confessionQ = cleanResponse(data2.content[0].text);
+        // Validate Chase is actually asking a question, not giving advice
+        if (confessionQ.includes('?') && confessionQ.length < 200) {
+          await addMultiBubble(confessionQ);
+        } else throw new Error('not a question');
       } else throw new Error();
     } catch(e) {
       await delay(1200);
       hideTyping();
-      addMessage('in', `real quick tho. what's the one habit you know keeps getting in the way?`);
+      addMessage('in', `one more thing tho`);
       showTyping();
-      await delay(500);
+      await delay(600);
       hideTyping();
-      addMessage('in', `be real with me`);
+      addMessage('in', `what's the one habit that keeps pulling you back? be real`);
     }
 
     waitingForConfession = true;
