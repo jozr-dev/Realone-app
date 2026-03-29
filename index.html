@@ -1054,9 +1054,43 @@ async function handleOnboardingMessage(text) {
   // Try to extract info from what they said
   extractOnboardingInfo(text);
 
-  // Check if we need to show mode selection
-  if (onboardingData.age && onboardingData.goals && onboardingData.struggle && onboardingData.whyNow && !onboardingData.mode) {
-    // We have everything — let the API deliver the mode question naturally
+  // If we have the core info and mode hasn't been set yet, force mode question
+  // Don't rely on Chase phrasing it exactly right
+  const hasCore = onboardingData.age && onboardingData.goals && onboardingData.struggle;
+  if (hasCore && !onboardingData.mode) {
+    showTyping();
+    await delay(1200);
+    hideTyping();
+    // Let Chase deliver one more response then force mode
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 8000);
+      const response = await fetch(API_BASE + '/chat', {
+        method: 'POST',
+        signal: controller.signal,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'claude-haiku-4-5-20251001',
+          max_tokens: 80,
+          system: `You are Chase. You've learned enough about ${state.userName}. Now ask how they want to be held accountable. End with exactly this question on its own line: "you want me locked in on you or you wanna cruise on your own terms?" — lowercase, no punctuation changes. 1-2 short lines before it max.`,
+          messages: onboardingHistory.slice(-4)
+        })
+      });
+      clearTimeout(timeout);
+      const data = await response.json();
+      if (data.content && data.content[0]) {
+        const reply = cleanResponse(data.content[0].text);
+        onboardingHistory.push({ role: 'assistant', content: reply });
+        await addMultiBubble(reply);
+      } else throw new Error();
+    } catch(e) {
+      addMessage('in', `aight I got the picture`);
+      await delay(400);
+      addMessage('in', `you want me locked in on you or you wanna cruise on your own terms?`);
+    }
+    await delay(400);
+    showOnboardingChoices(['🔒 Locked In — don\'t let me slide', '😌 Chill. I got it on my own terms']);
+    return;
   }
 
   showTyping();
@@ -1092,7 +1126,7 @@ async function handleOnboardingMessage(text) {
     // Render as multi-bubble
     await addMultiBubble(reply);
 
-    // Check if Chase just asked about mode (look for "locked in" and "own terms" in the response)
+    // Fallback mode detection if Chase happens to phrase it right
     if (reply.toLowerCase().includes('locked in') && reply.toLowerCase().includes('own terms')) {
       await delay(400);
       showOnboardingChoices(['🔒 Locked In — don\'t let me slide', '😌 Chill. I got it on my own terms']);
@@ -1104,7 +1138,6 @@ async function handleOnboardingMessage(text) {
 
   } catch(e) {
     hideTyping();
-    // Fallback — just keep the conversation going with a generic prompt
     addMessage('in', `that's real. tell me more`);
     onboardingHistory.push({ role: 'assistant', content: `that's real. tell me more` });
     console.error('Onboarding API error:', e);
