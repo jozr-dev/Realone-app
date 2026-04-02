@@ -1038,7 +1038,7 @@ function showOnboardingChoices(choices) {
       row.querySelectorAll('button').forEach(b => b.disabled = true);
       addMessage('out', c);
       row.remove();
-      handleOnboardingMessage(c);
+      handleOnboardingFreeText(c);
     };
     row.appendChild(btn);
   });
@@ -1319,6 +1319,22 @@ async function handleOnboardingFreeText(text) {
     waitingForConfession = false;
     onboardingData.confession = text;
     await getConfessionResponse(text);
+    return;
+  }
+
+  // If mode is set but we somehow got here — re-show the confession question
+  // This catches cases where Chase kept chatting after mode selection
+  if (onboardingData.mode && !onboardingData.confession) {
+    waitingForConfession = true;
+    addMessage('in', `one more thing tho`);
+    showTyping();
+    await delay(700);
+    hideTyping();
+    addMessage('in', `what's the one habit that keeps pulling you back every time?`);
+    showTyping();
+    await delay(500);
+    hideTyping();
+    addMessage('in', `be real with me`);
     return;
   }
 
