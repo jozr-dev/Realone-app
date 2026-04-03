@@ -1878,9 +1878,12 @@ async function addMultiBubble(text) {
   // Send first bubble immediately
   addMessage('in', parts[0]);
   
-  // Send remaining bubbles with short delays + typing indicator
+  // Send remaining bubbles with reading pause + typing indicator
   for (let i = 1; i < parts.length; i++) {
-    const typingTime = Math.min(Math.max(parts[i].length * 12, 350), 1000);
+    // Let user read the previous bubble before typing starts
+    const readPause = Math.min(Math.max(parts[i - 1].length * 28, 700), 1800);
+    await delay(readPause);
+    const typingTime = Math.min(Math.max(parts[i].length * 14, 500), 1200);
     showTyping();
     await delay(typingTime);
     hideTyping();
