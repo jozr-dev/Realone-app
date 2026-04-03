@@ -671,6 +671,7 @@ let state = {
   userTimezone: null,   // e.g. 'America/Los_Angeles' — set during onboarding
   userCity: null,       // e.g. 'LA' — Chase uses this in proactive messages
   mode: 'locked', // locked | chill
+  isPaid: false,
   streak: 0,
   xp: 0,
   lastCheckIn: null,
@@ -1730,8 +1731,13 @@ function checkMessageLimit() {
 }
 
 function handleUpgradeClick() {
-  // Paywall UI not wired yet — placeholder
-  showToast('upgrade coming soon');
+  // Paywall wiring to Stripe will be added later.
+  // For now, post a Chase message acknowledging the upgrade flow.
+  if (state.isPaid) {
+    showToast('you already have access');
+    return;
+  }
+  addMessage('in', "working on getting you set up...");
 }
 
 async function sendMessage() {
