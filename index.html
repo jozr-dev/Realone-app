@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <title>Real One</title>
 <link rel="manifest" href="/manifest.json">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -379,6 +380,58 @@
   }
 
   /* ── INPUT AREA ── */
+  /* ── LIMIT BANNER ── */
+  #limit-banner {
+    flex-shrink: 0;
+    padding: 12px 16px;
+    background: rgba(28,28,30,0.97);
+    border-top: 1px solid var(--border);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+  }
+
+  .limit-banner-inner {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .limit-banner-msg {
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.45;
+  }
+
+  .limit-banner-msg strong {
+    color: var(--text);
+    font-weight: 600;
+  }
+
+  .limit-countdown {
+    font-size: 12px;
+    color: var(--text-muted);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .limit-upgrade-btn {
+    align-self: flex-start;
+    padding: 7px 16px;
+    background: rgba(10,132,255,0.12);
+    border: 1px solid rgba(10,132,255,0.25);
+    border-radius: 20px;
+    color: var(--accent);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background 0.15s ease, border-color 0.15s ease;
+  }
+
+  .limit-upgrade-btn:hover {
+    background: rgba(10,132,255,0.2);
+    border-color: rgba(10,132,255,0.4);
+  }
+
   .input-area {
     background: rgba(28,28,30,0.95);
     backdrop-filter: blur(20px);
@@ -589,6 +642,9 @@
 
   <div id="messages"></div>
 
+  <!-- MESSAGE LIMIT BANNER -->
+  <div id="limit-banner" style="display:none;"></div>
+
   <div class="input-area">
     <div class="input-left">
       <button class="input-icon-btn" onclick="document.getElementById('photo-input').click()" title="Send photo">📷</button>
@@ -633,6 +689,10 @@ let state = {
   lastActiveAt: null,     // ISO timestamp — updated on every user message
   nudgeCount: 0,          // resets to 0 each day
   lastNudgeDate: null,    // date string — tracks daily nudge resets
+  dailyMessageCount: 0,   // resets at midnight
+  lastMessageDate: null,  // date string — e.g. '4/2/2026'
+  cooldownUntil: null,    // ISO timestamp — 2-hour cooldown after hitting 15
+  bonusUsed: false,       // whether the 5 bonus messages after cooldown have been used
 };
 
 // ── CONFIG ──
@@ -650,7 +710,13 @@ window.onload = () => {
       const session = JSON.parse(cached);
       if (session.userId && session.state && session.state.userName) {
         currentUserId = session.userId;
+        // Merge saved state onto defaults, then explicitly preserve
+        // message-limit related fields if they exist in the saved session.
         state = { ...state, ...session.state };
+        if (session.state.dailyMessageCount !== undefined) state.dailyMessageCount = session.state.dailyMessageCount;
+        if (session.state.lastMessageDate !== undefined) state.lastMessageDate = session.state.lastMessageDate;
+        if (session.state.cooldownUntil !== undefined) state.cooldownUntil = session.state.cooldownUntil;
+        if (session.state.bonusUsed !== undefined) state.bonusUsed = session.state.bonusUsed;
         if (session.onboardingData) onboardingData = session.onboardingData;
         restored = true;
       }
@@ -836,6 +902,8 @@ function launchApp() {
   document.getElementById('app').style.display = 'flex';
   document.getElementById('chase-name').textContent = state.chaseName;
   updateStreakBar();
+  resetDailyCountIfNeeded();
+  updateLimitBanner();
 
   // Restore notifications if already granted
   if (state.notificationsEnabled && Notification.permission === 'granted') {
@@ -1497,25 +1565,229 @@ function handleKey(e) {
   if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
 }
 
+// ── MESSAGE LIMIT SYSTEM ──
+const FREE_DAILY_LIMIT = 15;
+const BONUS_MESSAGES = 5;
+const COOLDOWN_MS = 2 * 60 * 60 * 1000; // 2 hours
+
+function getTodayStr() {
+  const d = new Date();
+  return `${d.getMonth()+1}/${d.getDate()}/${d.getFullYear()}`;
+}
+
+function resetDailyCountIfNeeded() {
+  const today = getTodayStr();
+  if (state.lastMessageDate !== today) {
+    state.dailyMessageCount = 0;
+    state.lastMessageDate = today;
+    state.bonusUsed = false;
+    // Clear expired cooldown from a previous day
+    if (state.cooldownUntil) {
+      const cooldownDate = new Date(state.cooldownUntil).toLocaleDateString('en-US');
+      if (cooldownDate !== today) state.cooldownUntil = null;
+    }
+  }
+}
+
+function getMidnightMs() {
+  const now = new Date();
+  const midnight = new Date(now);
+  midnight.setHours(24, 0, 0, 0);
+  return midnight - now;
+}
+
+function formatCountdown(ms) {
+  if (ms <= 0) return '0:00';
+  const totalSec = Math.floor(ms / 1000);
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+  if (h > 0) return `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+  return `${m}:${String(s).padStart(2,'0')}`;
+}
+
+let _limitCountdownInterval = null;
+
+function updateLimitBanner() {
+  const banner = document.getElementById('limit-banner');
+  const input = document.getElementById('msg-input');
+  const sendBtn = document.getElementById('send-btn');
+
+  if (_limitCountdownInterval) { clearInterval(_limitCountdownInterval); _limitCountdownInterval = null; }
+
+  const now = Date.now();
+
+  // ── STATE: cooldown active ──
+  if (state.cooldownUntil && now < new Date(state.cooldownUntil).getTime()) {
+    banner.style.display = 'block';
+    input.disabled = true;
+    input.placeholder = 'on cooldown...';
+    sendBtn.disabled = true;
+
+    const renderCooldown = () => {
+      const remaining = new Date(state.cooldownUntil).getTime() - Date.now();
+      if (remaining <= 0) {
+        clearInterval(_limitCountdownInterval);
+        _limitCountdownInterval = null;
+        // Cooldown done — grant bonus messages
+        state.cooldownUntil = null;
+        saveState();
+        updateLimitBanner();
+        return;
+      }
+      banner.innerHTML = `
+        <div class="limit-banner-inner">
+          <div class="limit-banner-msg">
+            <strong>Chase:</strong> ight I got more to say but we're running low... you know how to fix that
+          </div>
+          <div class="limit-countdown">cooldown resets in <strong>${formatCountdown(remaining)}</strong></div>
+          <button class="limit-upgrade-btn" onclick="handleUpgradeClick()">unlock unlimited →</button>
+        </div>`;
+    };
+    renderCooldown();
+    _limitCountdownInterval = setInterval(renderCooldown, 1000);
+    return;
+  }
+
+  // ── STATE: bonus available (cooldown done, bonus not yet used) ──
+  const bonusAvailable = state.dailyMessageCount >= FREE_DAILY_LIMIT && !state.cooldownUntil && !state.bonusUsed;
+  const bonusRemaining = FREE_DAILY_LIMIT + BONUS_MESSAGES - state.dailyMessageCount;
+
+  if (bonusAvailable && bonusRemaining > 0) {
+    banner.style.display = 'block';
+    input.disabled = false;
+    input.placeholder = 'iMessage';
+    sendBtn.disabled = false;
+    banner.innerHTML = `
+      <div class="limit-banner-inner">
+        <div class="limit-banner-msg">
+          <strong>Chase:</strong> back — got <strong>${bonusRemaining}</strong> more for you. make 'em count
+        </div>
+        <button class="limit-upgrade-btn" onclick="handleUpgradeClick()">go unlimited →</button>
+      </div>`;
+    return;
+  }
+
+  // ── STATE: fully locked until midnight ──
+  if (state.dailyMessageCount >= FREE_DAILY_LIMIT + BONUS_MESSAGES && state.bonusUsed) {
+    banner.style.display = 'block';
+    input.disabled = true;
+    input.placeholder = 'come back tomorrow...';
+    sendBtn.disabled = true;
+
+    const renderMidnight = () => {
+      const msLeft = getMidnightMs();
+      banner.innerHTML = `
+        <div class="limit-banner-inner">
+          <div class="limit-banner-msg">
+            <strong>Chase:</strong> that's all I got today. catch me at midnight or upgrade to keep going
+          </div>
+          <div class="limit-countdown">resets in <strong>${formatCountdown(msLeft)}</strong></div>
+          <button class="limit-upgrade-btn" onclick="handleUpgradeClick()">unlock unlimited →</button>
+        </div>`;
+    };
+    renderMidnight();
+    _limitCountdownInterval = setInterval(renderMidnight, 1000);
+    return;
+  }
+
+  // ── STATE: normal, within limit ──
+  banner.style.display = 'none';
+  input.disabled = false;
+  input.placeholder = 'iMessage';
+  sendBtn.disabled = false;
+}
+
+function checkMessageLimit() {
+  // Returns true if the message should be blocked
+  const now = Date.now();
+
+  // Cooldown active
+  if (state.cooldownUntil && now < new Date(state.cooldownUntil).getTime()) {
+    updateLimitBanner();
+    return true;
+  }
+
+  // Clear expired cooldown (transition to bonus window)
+  if (state.cooldownUntil && now >= new Date(state.cooldownUntil).getTime()) {
+    state.cooldownUntil = null;
+  }
+
+  // Fully locked (bonus exhausted)
+  if (state.bonusUsed) {
+    updateLimitBanner();
+    return true;
+  }
+
+  // In bonus window — flag the last bonus message so we lock after it sends
+  const bonusAvailable = state.dailyMessageCount >= FREE_DAILY_LIMIT;
+  const bonusRemaining = FREE_DAILY_LIMIT + BONUS_MESSAGES - state.dailyMessageCount;
+  if (bonusAvailable && bonusRemaining <= 1) {
+    state._markBonusAfterSend = true;
+  }
+
+  return false;
+}
+
+function handleUpgradeClick() {
+  // Paywall UI not wired yet — placeholder
+  showToast('upgrade coming soon');
+}
+
 async function sendMessage() {
   const input = document.getElementById('msg-input');
   const text = input.value.trim();
   if (!text) return;
+
+  // Reset daily count if it's a new day (do this once, at the top)
+  resetDailyCountIfNeeded();
+
+  // Onboarding bypass — don't count onboarding messages
+  if (!state.onboardingDone) {
+    input.value = '';
+    input.style.height = 'auto';
+    document.getElementById('send-btn').classList.remove('visible');
+    addMessage('out', text);
+    addXP(5);
+    await handleOnboardingFreeText(text);
+    return;
+  }
+
+  // Check message limit
+  if (checkMessageLimit()) return;
+
   input.value = '';
   input.style.height = 'auto';
   document.getElementById('send-btn').classList.remove('visible');
   addMessage('out', text);
   addXP(5);
 
-  if (!state.onboardingDone) {
-    await handleOnboardingFreeText(text);
-    return;
+  // Increment counter
+  state.dailyMessageCount++;
+  state.lastMessageDate = getTodayStr();
+
+  // If we just crossed the free limit, start cooldown
+  if (state.dailyMessageCount === FREE_DAILY_LIMIT) {
+    state.cooldownUntil = new Date(Date.now() + COOLDOWN_MS).toISOString();
+    saveState();
+    updateLimitBanner();
+    // Still process this message through Chase
   }
 
-  // Track activity for quiet nudge detection (only after onboarding)
+  // If bonus window is exhausted, mark it
+  if (state._markBonusAfterSend) {
+    state.bonusUsed = true;
+    state._markBonusAfterSend = false;
+  }
+  if (state.dailyMessageCount >= FREE_DAILY_LIMIT + BONUS_MESSAGES) {
+    state.bonusUsed = true;
+  }
+
+  // Track activity for quiet nudge detection
   state.lastActiveAt = new Date().toISOString();
   state.nudgeCount = 0;
   saveState();
+  updateLimitBanner();
   scheduleQuietNudge();
 
   await getChaseResponse(text);
