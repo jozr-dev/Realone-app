@@ -82,4 +82,17 @@ End corrections with: "Now update CLAUDE.md so you don't make that mistake again
 
 ---
 
+## End of Session Checklist
+
+Before every commit:
+- Run a techdebt scan (dead code, unused functions, leftover console.logs, debug artifacts)
+- Fix all dead code and debug logs before pushing to production
+- Never ship `console.log`, `DEBUG:` prefixes, or no-op functions to main
+
+## Intentionally Unwired Code
+
+- `detectPatterns()` — left unwired on purpose. It detects cause-effect patterns from conversation history and feeds `state.patterns`. Will be connected in Phase 3. Do not remove it.
+
+---
+
 _Update this file continuously. Every mistake is a learning opportunity._
