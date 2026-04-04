@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <title>Real One</title>
-<link rel="manifest" href="/manifest.json">
+<link rel="manifest" href="./manifest.json">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <meta name="apple-mobile-web-app-title" content="Real One">
@@ -727,9 +727,7 @@ window.onload = () => {
   }
 
   if (restored) {
-    // We have a cached session — launch app and sync from backend in background
     launchApp();
-    syncFromBackend();
   } else {
     // No cached session — show auth screen
     const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
@@ -844,9 +842,10 @@ async function handleAuth() {
 // ── PERSISTENCE ──
 function cacheSession() {
   try {
+    const { _markBonusAfterSend, ...stateToSave } = state;
     localStorage.setItem('realone_session', JSON.stringify({
       userId: currentUserId,
-      state,
+      state: stateToSave,
       onboardingData,
     }));
   } catch(e) {
@@ -881,22 +880,6 @@ function saveHistory(role, content) {
   }).catch(err => console.warn('History sync failed:', err));
 }
 
-async function syncFromBackend() {
-  if (!currentUserId) return;
-  try {
-    const response = await fetch(API_BASE + '/api/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ userId: currentUserId, pin: '__session__' }),
-    });
-    // If this fails (wrong pin since we're using session), that's fine
-    // The cached data is still valid for this session
-  } catch(e) {
-    // Silent — cache is good enough
-  }
-}
-
-let isRecoveryMode = false;
 
 function launchApp() {
   document.getElementById('setup-screen').style.display = 'none';
@@ -1927,13 +1910,12 @@ async function getChaseResponse(userText, imageBase64 = null) {
     });
 
     const data = await response.json();
-    console.log('API response:', JSON.stringify(data).substring(0, 200));
 
     if (data.error) {
       console.error('API error:', data.error);
       state.history.pop();
       hideTyping();
-      addMessage('in', `DEBUG: ${data.error.type} — ${data.error.message}`);
+      addMessage('in', `something went wrong on my end. try again in a sec`);
       return;
     }
 
@@ -2417,33 +2399,6 @@ function scheduleNotifications() {
   scheduleQuietNudge();
 }
 
-function showInstallBanner() {
-  // Check if already installed
-  if (window.matchMedia('(display-mode: standalone)').matches) return;
-  if (state.installBannerDismissed) return;
-
-  const banner = document.createElement('div');
-  banner.id = 'install-banner';
-  banner.style.cssText = `
-    position: fixed; bottom: 80px; left: 16px; right: 16px;
-    background: #1c1c1e; border: 1px solid rgba(10,132,255,0.3);
-    border-radius: 16px; padding: 14px 16px;
-    display: flex; align-items: center; justify-content: space-between;
-    z-index: 200; animation: fadeIn 0.3s ease;
-    box-shadow: 0 4px 24px rgba(0,0,0,0.5);
-  `;
-  banner.innerHTML = `
-    <div style="flex:1;">
-      <div style="font-size:13px;font-weight:600;color:#fff;margin-bottom:3px;">Add to Home Screen</div>
-      <div style="font-size:11px;color:rgba(255,255,255,0.45);">Get Chase notifications even when the app is closed</div>
-    </div>
-    <div style="display:flex;gap:8px;margin-left:12px;">
-      <button onclick="dismissInstallBanner()" style="background:none;border:1px solid rgba(255,255,255,0.15);color:rgba(255,255,255,0.5);border-radius:8px;padding:6px 10px;font-size:12px;cursor:pointer;">Not now</button>
-      <button onclick="triggerInstall()" style="background:#0a84ff;border:none;color:#fff;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer;">Add</button>
-    </div>
-  `;
-  document.body.appendChild(banner);
-}
 
 function triggerInstall() {
   const banner = document.getElementById('install-banner');
