@@ -587,6 +587,40 @@
     from { opacity: 0; transform: translateY(10px); }
     to { opacity: 1; transform: translateY(0); }
   }
+
+  .paywall-btn {
+    border: none;
+    cursor: pointer;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 15px;
+    font-weight: 600;
+    text-align: center;
+    transition: transform 0.15s ease, opacity 0.15s ease;
+  }
+  .paywall-btn:active { transform: scale(0.97); opacity: 0.85; }
+  .paywall-btn.primary {
+    background: var(--accent);
+    color: #fff;
+    border-radius: 12px;
+    padding: 15px;
+    width: 100%;
+  }
+  .paywall-btn.secondary {
+    background: var(--surface2);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 15px;
+    width: 100%;
+  }
+  .paywall-btn.text-link {
+    background: transparent;
+    color: var(--text-secondary);
+    padding: 8px;
+    font-weight: 400;
+    font-size: 13px;
+  }
+  .paywall-btn.text-link.muted { color: var(--text-muted); }
 </style>
 </head>
 <body>
@@ -694,6 +728,12 @@ let state = {
   lastMessageDate: null,  // date string — e.g. '4/2/2026'
   cooldownUntil: null,    // ISO timestamp — 2-hour cooldown after hitting 15
   bonusUsed: false,       // whether the 5 bonus messages after cooldown have been used
+  paywallStage: 0,        // 0 = not triggered, 1-5 = negotiation stages
+  firstSessionPaywall: false, // true after first paywall shown (never re-trigger full negotiation)
+  consecutiveLimitDays: 0,   // days in a row user has hit the free limit
+  paywallMode: false,
+  paywallCompleted: false,
+  paywallMissedSignals: 0,
 };
 
 // ── CONFIG ──
@@ -728,6 +768,7 @@ window.onload = () => {
 
   if (restored) {
     launchApp();
+    handleStripeReturn();
   } else {
     // No cached session — show auth screen
     const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
@@ -818,6 +859,19 @@ async function handleAuth() {
     // Success — load user data
     currentUserId = data.userId;
     state = { ...state, ...data.state };
+    // Migrate missing fields — Railway state may predate these
+    state.dailyMessageCount    = state.dailyMessageCount    ?? 0;
+    state.lastMessageDate      = state.lastMessageDate      ?? null;
+    state.cooldownUntil        = state.cooldownUntil        ?? null;
+    state.bonusUsed            = state.bonusUsed            ?? false;
+    state.isPaid               = state.isPaid               ?? false;
+    state.paywallStage         = state.paywallStage         ?? 0;
+    state.firstSessionPaywall  = state.firstSessionPaywall  ?? false;
+    state.consecutiveLimitDays = state.consecutiveLimitDays ?? 0;
+    state.stripeCustomerId     = state.stripeCustomerId     ?? null;
+    state.paywallMode          = state.paywallMode          ?? false;
+    state.paywallCompleted     = state.paywallCompleted     ?? false;
+    state.paywallMissedSignals = state.paywallMissedSignals ?? 0;
     if (data.onboardingData) onboardingData = data.onboardingData;
     
     // Restore chat history from backend
@@ -923,6 +977,7 @@ function launchApp() {
 
 let onboardingData = {};
 let onboardingHistory = []; // separate conversation history for onboarding
+let paywallHistory = []; // separate conversation history for paywall flow
 
 // Onboarding data shape:
 // { age, goals, struggle, whyNow, mode, confession, timezone, city }
@@ -1684,6 +1739,7 @@ function updateLimitBanner() {
 
 function checkMessageLimit() {
   // Returns true if the message should be blocked
+  if (state.paywallMode) return false;
   const now = Date.now();
 
   // Cooldown active
@@ -1714,13 +1770,25 @@ function checkMessageLimit() {
 }
 
 function handleUpgradeClick() {
-  // Paywall wiring to Stripe will be added later.
-  // For now, post a Chase message acknowledging the upgrade flow.
   if (state.isPaid) {
     showToast('you already have access');
     return;
   }
-  addMessage('in', "working on getting you set up...");
+  // Stage 6 — hit the daily limit pitch
+  (async () => {
+    addMessage('in', "and that's a wrap for today on the free plan");
+    await delay(900);
+    showTyping();
+    await delay(1000);
+    hideTyping();
+    addMessage('in', "you know the move. $3.99/week and we don't have this awkward moment anymore");
+    await delay(600);
+    showPaywallButtons([
+      { text: "$3.99/week", action: () => startCheckout('weekly') },
+      { text: "$34.99/year", action: () => startCheckout('annual') },
+      { text: "3-Day Free Trial", action: () => startCheckout('weekly_trial') },
+    ]);
+  })();
 }
 
 async function sendMessage() {
@@ -1742,6 +1810,16 @@ async function sendMessage() {
     return;
   }
 
+  // If user texts while in paywall mode, route directly to Chase (stage advances via handlePaywallSignal)
+  if (state.paywallMode && !state.isPaid) {
+    input.value = '';
+    input.style.height = 'auto';
+    document.getElementById('send-btn').classList.remove('visible');
+    addMessage('out', text);
+    await getChaseResponse(text);
+    return;
+  }
+
   // Check message limit
   if (checkMessageLimit()) return;
 
@@ -1755,12 +1833,29 @@ async function sendMessage() {
   state.dailyMessageCount++;
   state.lastMessageDate = getTodayStr();
 
-  // If we just crossed the free limit, start cooldown
-  if (state.dailyMessageCount === FREE_DAILY_LIMIT) {
-    state.cooldownUntil = new Date(Date.now() + COOLDOWN_MS).toISOString();
+  // Paywall trigger — fires at message 12, first time only
+  if (
+    state.dailyMessageCount >= 12 &&
+    state.onboardingDone &&
+    !state.isPaid &&
+    !state.firstSessionPaywall &&
+    state.paywallStage === 0
+  ) {
+    state.paywallStage = 1;
+    state.firstSessionPaywall = true;
     saveState();
-    updateLimitBanner();
-    // Still process this message through Chase
+    showPaywallStage(1);
+    return;
+  }
+
+  // If we just crossed the free limit, start cooldown
+  if (!state.paywallMode) {
+    if (state.dailyMessageCount === FREE_DAILY_LIMIT) {
+      state.cooldownUntil = new Date(Date.now() + COOLDOWN_MS).toISOString();
+      saveState();
+      updateLimitBanner();
+      // Still process this message through Chase
+    }
   }
 
   // If bonus window is exhausted, mark it
@@ -1780,6 +1875,96 @@ async function sendMessage() {
   scheduleQuietNudge();
 
   await getChaseResponse(text);
+}
+
+// ══════════════════════════════════════════════
+// STRIPE PAYWALL
+// ══════════════════════════════════════════════
+
+function showPaywallButtons(buttons) {
+  const existing = document.getElementById('paywall-buttons');
+  if (existing) existing.remove();
+  if (!buttons.length) return;
+  const row = document.createElement('div');
+  row.className = 'choice-row';
+  row.id = 'paywall-buttons';
+  buttons.forEach(({ text, action }) => {
+    const btn = document.createElement('button');
+    btn.className = 'choice-btn';
+    btn.textContent = text;
+    btn.onclick = () => { row.remove(); action(); };
+    row.appendChild(btn);
+  });
+  document.getElementById('messages').appendChild(row);
+  scrollToBottom();
+}
+
+async function showPaywallStage(stage) {
+  state.paywallMode = true;
+  state.paywallStage = 1;
+  paywallHistory = [];
+  saveState();
+  getChaseResponse('hey', null, true);
+}
+
+async function startCheckout(plan) {
+  const btnRow = document.getElementById('paywall-buttons');
+  if (btnRow) btnRow.querySelectorAll('button').forEach(b => { b.disabled = true; });
+
+  const loadingMsg = plan === 'weekly_trial' ? 'locking in your trial...' : 'opening checkout...';
+  addMessage('in', loadingMsg);
+
+  try {
+    const res = await fetch(`${API_BASE}/stripe/create-checkout`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId: currentUserId, plan }),
+    });
+    const data = await res.json();
+    if (data.url) {
+      window.location.href = data.url;
+    } else {
+      addMessage('in', "something went wrong with the checkout. try again in a sec");
+      if (btnRow) btnRow.querySelectorAll('button').forEach(b => { b.disabled = false; });
+    }
+  } catch (err) {
+    addMessage('in', "checkout's acting up rn. try again");
+    if (btnRow) btnRow.querySelectorAll('button').forEach(b => { b.disabled = false; });
+  }
+}
+
+function handleStripeReturn() {
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('paid') === 'true') {
+    history.replaceState({}, '', window.location.pathname);
+    pollForPaymentConfirmation();
+  } else if (params.get('paid') === 'cancel') {
+    history.replaceState({}, '', window.location.pathname);
+    setTimeout(() => addMessage('in', "no worries. whenever you're ready"), 500);
+  }
+}
+
+async function pollForPaymentConfirmation() {
+  setTimeout(() => addMessage('in', "hold on lemme check..."), 300);
+  for (let i = 0; i < 5; i++) {
+    await new Promise(r => setTimeout(r, 2000));
+    try {
+      const res = await fetch(`${API_BASE}/stripe/status/${currentUserId}`);
+      const data = await res.json();
+      if (data.isPaid) {
+        state.isPaid = true;
+        state.paywallStage = 0;
+        saveState();
+        showPaidCelebration();
+        return;
+      }
+    } catch (e) { /* keep polling */ }
+  }
+  addMessage('in', "payment's still processing. give it a minute and reopen the app");
+}
+
+async function showPaidCelebration() {
+  await addMultiBubble("LETS GOOO 🔥\nok you're locked in now. no limits, no cooldowns\nthis is where it gets real");
 }
 
 // ── CLEAN CHASE RESPONSES ──
@@ -1851,9 +2036,9 @@ async function checkMorningOpener() {
   saveState();
 }
 
-async function getChaseResponse(userText, imageBase64 = null) {
+async function getChaseResponse(userText, imageBase64 = null, silent = false) {
   // Build system prompt
-  const systemPrompt = buildSystemPrompt();
+  const systemPrompt = state.paywallMode ? getPaywallSystemPrompt() : buildSystemPrompt();
 
   // Add to history
   const userMsg = imageBase64
@@ -1863,8 +2048,12 @@ async function getChaseResponse(userText, imageBase64 = null) {
       ]}
     : { role: 'user', content: userText };
 
-  state.history.push(userMsg);
-  saveHistory('user', typeof userMsg.content === 'string' ? userMsg.content : '[image]');
+  if (state.paywallMode) {
+    paywallHistory.push({ role: 'user', content: typeof userMsg.content === 'string' ? userMsg.content : '[image]' });
+  } else {
+    state.history.push(userMsg);
+    saveHistory('user', typeof userMsg.content === 'string' ? userMsg.content : '[image]');
+  }
 
   // Ensure history starts with user role (API requires this)
   while (state.history.length > 0 && state.history[0].role !== 'user') {
@@ -1887,10 +2076,11 @@ async function getChaseResponse(userText, imageBase64 = null) {
   }
 
   // Keep history manageable
-  if (state.history.length > 40) {
+  if (!state.paywallMode && state.history.length > 40) {
     state.history = state.history.slice(-40);
   }
 
+  const contextHistory = getContextHistory();
   showTyping();
 
   try {
@@ -1905,43 +2095,324 @@ async function getChaseResponse(userText, imageBase64 = null) {
         model: 'claude-haiku-4-5-20251001',
         max_tokens: 400,
         system: systemPrompt,
-        messages: state.history
+        messages: contextHistory
       })
     });
 
     const data = await response.json();
 
+    console.log('Chase API response:', JSON.stringify(data).substring(0, 500));
     if (data.error) {
       console.error('API error:', data.error);
-      state.history.pop();
+      if (state.paywallMode) {
+        paywallHistory.pop();
+      } else {
+        state.history.pop();
+      }
       hideTyping();
       addMessage('in', `something went wrong on my end. try again in a sec`);
       return;
     }
 
-    const reply = cleanResponse(data.content[0].text);
-    state.history.push({ role: 'assistant', content: reply });
-    saveHistory('assistant', reply);
+    const contentText = data.content?.find(c => c.type === 'text')?.text;
+    if (!contentText) {
+      console.error('Empty content from API:', JSON.stringify(data).substring(0, 200));
+      hideTyping();
+      if (state.paywallMode) {
+        state.paywallMissedSignals = (state.paywallMissedSignals || 0) + 1;
+        if (state.paywallMissedSignals < 2) {
+          // Retry once — Haiku sometimes returns signal-only response
+          await getChaseResponse(userText, imageBase64, silent);
+        } else {
+          state.paywallMissedSignals = 0;
+          saveState();
+        }
+      } else {
+        state.history.pop();
+        addMessage('in', 'something went wrong on my end. try again in a sec');
+      }
+      return;
+    }
+    let chaseResponse = cleanResponse(contentText);
+    let signal = null;
+
+    if (state.paywallMode) {
+      const parsed = processPaywallSignal(chaseResponse);
+      chaseResponse = parsed.cleanedResponse;
+      signal = parsed.signal;
+      savePaywallMessage('assistant', chaseResponse);
+
+      if (!signal) {
+        state.paywallMissedSignals = (state.paywallMissedSignals || 0) + 1;
+        if (state.paywallMissedSignals >= 3) {
+          state.paywallStage = Math.min(state.paywallStage + 1, 5);
+          state.paywallMissedSignals = 0;
+          if (state.paywallStage >= 5) {
+            state.paywallMode = false;
+            state.paywallCompleted = true;
+          }
+          saveState();
+        }
+      } else {
+        state.paywallMissedSignals = 0;
+      }
+    } else {
+      state.history.push({ role: 'assistant', content: chaseResponse });
+      saveHistory('assistant', chaseResponse);
+    }
 
     // Dynamic typing delay — longer messages take longer to "type"
-    const typingDelay = Math.min(Math.max(reply.length * 18, 600), 2800);
+    const typingDelay = Math.min(Math.max(chaseResponse.length * 18, 600), 2800);
     await delay(typingDelay);
     hideTyping();
 
     // Send as multiple bubbles like real texting
-    await addMultiBubble(reply);
+    if (chaseResponse && chaseResponse.trim()) {
+      await addMultiBubble(chaseResponse);
+    }
+    if (state.paywallMode && signal) {
+      handlePaywallSignal(signal);
+    }
     addXP(3);
     checkDailyStreak();
     extractPlanFromConversation();
     saveState();
 
   } catch(err) {
-    // Remove failed message from history
-    state.history.pop();
+    if (state.paywallMode) {
+      if (paywallHistory.length > 0) paywallHistory.pop();
+    } else {
+      state.history.pop();
+    }
     hideTyping();
     addMessage('in', `Connection issue. Try again in a sec.`);
-    console.error(err);
+    console.error('getChaseResponse error:', err);
   }
+}
+
+function getPaywallSystemPrompt() {
+  const age = state.userAge || 22;
+  const name = state.userName || 'bro';
+  const goals = (state.goals || []).join(', ') || 'their goals';
+  const struggle = onboardingData?.struggle || 'what they told you about';
+  const confession = onboardingData?.confession || '';
+  const mode = onboardingData?.mode || 'locked';
+  const streak = state.streak || 0;
+  const messageCount = state.dailyMessageCount || 12;
+  const stage = state.paywallStage || 1;
+
+  let toneGuide = '';
+  if (age < 22) {
+    toneGuide = 'heavy gen z energy. "fr", "ngl", "no cap", "lowkey", "bet", "valid". playful but real.';
+  } else if (age <= 29) {
+    toneGuide = 'casual but grounded. "fr", "bet", "ngl" are natural. don\'t try too hard with slang.';
+  } else {
+    toneGuide = 'direct and blunt. minimal slang. straight talk. respect their time.';
+  }
+
+  return `you are chase. you're an accountability companion who's been talking to ${name} and actually knows them.
+
+TONE: ${toneGuide}
+
+PERSONALITY RULES (never break these):
+- lowercase always
+- never use em dashes, bullet points, or numbered lists
+- max 2-3 short lines per message. you text like a real person, not paragraphs
+- one thought per message. if you have two points, send two messages (separate with \n)
+- react genuinely before pivoting. don't jump straight to sales talk
+- never say "as an AI" or break character
+- 0-2 emojis max per message
+
+WHAT YOU KNOW ABOUT ${name}:
+- age: ${age}
+- goals: ${goals}
+- what they struggle with: ${struggle}
+${confession ? `- something they admitted: "${confession}"` : ''}
+- mode they picked: ${mode}
+- current streak: ${streak} day${streak !== 1 ? 's' : ''}
+- messages today: ${messageCount}
+
+SITUATION:
+${name} has been using you for free. you've had a real conversation. they've opened up to you. now it's time to let them know this isn't free forever.
+
+you are NOT a sales bot. you genuinely believe you can help ${name} with ${goals}. you've already seen them open up about ${struggle}. that's rare. most people don't do that.
+
+CURRENT STAGE: ${stage}
+
+STAGE BEHAVIOR:
+
+stage 1 (opener):
+- transition naturally from whatever you were just talking about
+- acknowledge that the conversation has been real
+- let them know most people who use you like this are paying
+- reference something specific they told you (their goals, their struggle, their confession) to show this isn't generic
+- DO NOT mention any price yet. just plant the seed
+- end your message in a way that invites a response
+- after sending, output the signal: [PAYWALL_WAIT]
+
+stage 2 (the pitch):
+- read their response. if they seem open, move forward. if resistant, acknowledge it first
+- do the fake high price joke ("$500 a month" then "jk") but make it feel natural for their age
+- reveal the real price: $3.99/week
+- compare it to something they specifically spend money on (if they mentioned coffee, food, gaming, etc. use that. otherwise use a relatable default)
+- output the signal: [SHOW_WEEKLY]
+- end with space for them to respond
+
+stage 3 (pushback handling):
+- they didn't buy on stage 2. that's fine
+- don't repeat yourself. bring a NEW angle
+- reference their specific goals and struggle. "you told me you want to [goal]. you said [struggle] keeps getting in the way. I'm literally here to make sure that doesn't happen"
+- introduce the annual option: $34.99/year, less than $3/month
+- output the signal: [SHOW_BOTH]
+- still conversational, not desperate
+
+stage 4 (trial offer):
+- they're still not buying. respect that energy but don't give up yet
+- offer the 3-day free trial. position it as confidence: "if I can't prove I'm worth it in 3 days then I deserve to lose you"
+- make it clear: full access, no catch, card on file, cancels easy
+- output the signal: [SHOW_TRIAL]
+
+stage 5 (graceful exit):
+- they said no to everything. respect it completely
+- no guilt, no passive aggression, no "you'll regret this"
+- tell them they still have their free messages
+- mention the offer stands whenever they want it
+- transition back naturally: "anyway... where were we" or reference something from the conversation
+- output the signal: [PAYWALL_EXIT]
+
+IMPORTANT RULES FOR ALL STAGES:
+- never output more than one signal per message
+- never mention the signal tags to the user. they are invisible system markers
+- always put the signal tag on its own line at the very end of your message
+- you MUST include at least one line of actual text before the signal tag. never send a signal tag alone with no message
+- if the user says something completely off-topic or emotional during paywall, respond to THAT first as chase would, then gently steer back. don't ignore what they said to push the sale
+- if the user says "I can't afford it" or signals financial hardship, skip straight to stage 4 (trial) with empathy. don't make them feel bad
+- if the user is clearly joking around or bantering, match their energy. don't go robotic
+- if the user explicitly asks to stop or says "not interested" firmly after stage 3 or later, skip to stage 5
+- you advance ONE stage per message exchange. never skip from 1 to 3 in one message
+- after stage 5, you're done. [PAYWALL_EXIT] means it's over
+
+THE PRICES (use these exact numbers):
+- weekly: $3.99/week
+- annual: $34.99/year (less than $3/month)
+- trial: 3 days free, then $3.99/week
+
+never invent other prices or discounts.`;
+}
+
+function processPaywallSignal(rawResponse) {
+  const signals = ['PAYWALL_WAIT','SHOW_WEEKLY','SHOW_BOTH','SHOW_TRIAL','PAYWALL_EXIT'];
+  let signal = null;
+  let cleanedResponse = rawResponse;
+  for (const tag of signals) {
+    if (rawResponse.includes('[' + tag + ']')) {
+      signal = tag;
+      cleanedResponse = rawResponse.split('[' + tag + ']').join('').trim();
+      break;
+    }
+  }
+  return { cleanedResponse: cleanedResponse || '', signal };
+}
+
+function handlePaywallSignal(signal) {
+  switch (signal) {
+    case 'PAYWALL_WAIT':
+      state.paywallStage = 2;
+      break;
+    case 'SHOW_WEEKLY':
+      state.paywallStage = 3;
+      renderPaywallButtons('weekly');
+      break;
+    case 'SHOW_BOTH':
+      state.paywallStage = 4;
+      renderPaywallButtons('both');
+      break;
+    case 'SHOW_TRIAL':
+      state.paywallStage = 5;
+      renderPaywallButtons('trial');
+      break;
+    case 'PAYWALL_EXIT':
+      state.paywallMode = false;
+      state.paywallStage = 0;
+      state.paywallCompleted = true;
+      break;
+  }
+  saveState();
+}
+
+function renderPaywallButtons(type) {
+  const container = document.createElement('div');
+  container.className = 'paywall-buttons';
+  container.style.cssText = 'display:flex;flex-direction:column;gap:8px;padding:8px 16px;animation:fadeIn 0.3s ease;';
+
+  if (type === 'weekly' || type === 'both') {
+    const weeklyBtn = document.createElement('button');
+    weeklyBtn.className = 'paywall-btn primary';
+    weeklyBtn.textContent = 'Go All In — $3.99/week';
+    weeklyBtn.onclick = () => startCheckout('weekly');
+    container.appendChild(weeklyBtn);
+  }
+
+  if (type === 'trial') {
+    const trialBtn = document.createElement('button');
+    trialBtn.className = 'paywall-btn primary';
+    trialBtn.textContent = 'Start 3-Day Free Trial';
+    trialBtn.onclick = () => startCheckout('weekly_trial');
+    container.appendChild(trialBtn);
+  }
+
+  if (type === 'both' || type === 'trial') {
+    const annualBtn = document.createElement('button');
+    annualBtn.className = type === 'trial' ? 'paywall-btn text-link' : 'paywall-btn secondary';
+    annualBtn.textContent = '$34.99/year (best value)';
+    annualBtn.onclick = () => startCheckout('annual');
+    container.appendChild(annualBtn);
+  }
+
+  if (type === 'trial') {
+    const weeklyLink = document.createElement('button');
+    weeklyLink.className = 'paywall-btn text-link';
+    weeklyLink.textContent = 'or $3.99/week';
+    weeklyLink.onclick = () => startCheckout('weekly');
+    container.appendChild(weeklyLink);
+  }
+
+  const skipLink = document.createElement('button');
+  skipLink.className = 'paywall-btn text-link muted';
+  skipLink.textContent = 'not right now';
+  skipLink.onclick = () => { container.remove(); };
+  container.appendChild(skipLink);
+
+  document.getElementById('messages').appendChild(container);
+  if (typeof scrollToBottom === 'function') scrollToBottom();
+}
+
+function savePaywallMessage(role, content) {
+  // Save to backend with [PW] tag for analytics only
+  fetch(API_BASE + '/api/history', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ userId: currentUserId, role, content: '[PW] ' + content })
+  });
+  // Also push assistant responses to paywallHistory for context
+  if (role === 'assistant') {
+    paywallHistory.push({ role, content });
+  }
+}
+
+function getContextHistory() {
+  if (state.paywallMode) {
+    if (paywallHistory.length === 0) {
+      return [{ role: 'user', content: 'hey' }];
+    }
+    // Ensure array starts with user role (API requirement)
+    const filtered = paywallHistory.filter((_, i) => {
+      if (i === 0) return paywallHistory[0].role === 'user';
+      return true;
+    });
+    return filtered.length > 0 ? filtered : [{ role: 'user', content: 'hey' }];
+  }
+  return state.history;
 }
 
 function buildSystemPrompt() {
@@ -2287,7 +2758,7 @@ let swRegistration = null;
 let deferredInstallPrompt = null;
 
 // Register service worker
-if ('serviceWorker' in navigator) {
+if ('serviceWorker' in navigator && !window.location.hostname.includes('localhost') && !window.location.hostname.includes('127.0.0.1')) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('./sw.js').then(reg => {
       swRegistration = reg;
